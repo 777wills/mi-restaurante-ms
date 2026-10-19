@@ -8,6 +8,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/MiRestaurante.Api.FunctionalTests/MiRestaurante.Api.FunctionalTests.csproj" />
     <Project Path="tests/MiRestaurante.Application.UnitTests/MiRestaurante.Application.UnitTests.csproj" />
+    <Project Path="tests/MiRestaurante.Architecture.Tests/MiRestaurante.Architecture.Tests.csproj" />
     <Project Path="tests/MiRestaurante.Domain.UnitTests/MiRestaurante.Domain.UnitTests.csproj" />
     <Project Path="tests/MiRestaurante.Infrastructure.IntegrationTests/MiRestaurante.Infrastructure.IntegrationTests.csproj" />
   </Folder>
