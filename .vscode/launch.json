@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "MiRestaurante.Api (https)",
+      "type": "dotnet",
+      "request": "launch",
+      "projectPath": "${workspaceFolder}/MiRestaurante.Api/MiRestaurante.Api.csproj",
+      "launchConfigurationId": "TargetFramework=;https"
+    },
+    {
+      "name": "MiRestaurante.Api (http)",
+      "type": "dotnet",
+      "request": "launch",
+      "projectPath": "${workspaceFolder}/MiRestaurante.Api/MiRestaurante.Api.csproj",
+      "launchConfigurationId": "TargetFramework=;http"
+    }
+  ]
+}
