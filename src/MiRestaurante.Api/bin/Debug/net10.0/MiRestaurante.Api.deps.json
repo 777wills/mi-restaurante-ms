@@ -8,6 +8,8 @@
     ".NETCoreApp,Version=v10.0": {
       "MiRestaurante.Api/1.0.0": {
         "dependencies": {
+          "MiRestaurante.Application": "1.0.0",
+          "MiRestaurante.Infrastructure": "1.0.0",
           "Microsoft.AspNetCore.OpenApi": "10.0.12"
         },
         "runtime": {
@@ -32,6 +34,36 @@
             "fileVersion": "2.12.0.0"
           }
         }
+      },
+      "MiRestaurante.Application/1.0.0": {
+        "dependencies": {
+          "MiRestaurante.Domain": "1.0.0"
+        },
+        "runtime": {
+          "MiRestaurante.Application.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "MiRestaurante.Domain/1.0.0": {
+        "runtime": {
+          "MiRestaurante.Domain.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "MiRestaurante.Infrastructure/1.0.0": {
+        "dependencies": {
+          "MiRestaurante.Application": "1.0.0"
+        },
+        "runtime": {
+          "MiRestaurante.Infrastructure.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
       }
     }
   },
@@ -54,6 +86,21 @@
       "sha512": "sha512-0xB/be+f6qYOhvQPUrVsLrau+fkowYv6gt9RIkajMhwT7sZnqtcA797yW3bS5kgSje+AQW4xZgyLnW641YFioQ==",
       "path": "microsoft.openapi/2.12.0",
       "hashPath": "microsoft.openapi.2.12.0.nupkg.sha512"
+    },
+    "MiRestaurante.Application/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "MiRestaurante.Domain/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "MiRestaurante.Infrastructure/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
     }
   }
 }

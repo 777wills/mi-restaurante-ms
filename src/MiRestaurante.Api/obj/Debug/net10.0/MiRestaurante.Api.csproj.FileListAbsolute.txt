@@ -65,3 +65,9 @@
 /media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Api/obj/Debug/net10.0/MiRestaurante.Api.pdb
 /media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Api/obj/Debug/net10.0/MiRestaurante.Api.genruntimeconfig.cache
 /media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Api/obj/Debug/net10.0/ref/MiRestaurante.Api.dll
+/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Api/bin/Debug/net10.0/MiRestaurante.Application.dll
+/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Api/bin/Debug/net10.0/MiRestaurante.Domain.dll
+/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Api/bin/Debug/net10.0/MiRestaurante.Infrastructure.dll
+/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Api/bin/Debug/net10.0/MiRestaurante.Application.pdb
+/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Api/bin/Debug/net10.0/MiRestaurante.Infrastructure.pdb
+/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Api/bin/Debug/net10.0/MiRestaurante.Domain.pdb

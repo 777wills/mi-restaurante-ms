@@ -1,5 +1,14 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/MiRestaurante.Api/MiRestaurante.Api.csproj" />
+    <Project Path="src/MiRestaurante.Application/MiRestaurante.Application.csproj" />
+    <Project Path="src/MiRestaurante.Domain/MiRestaurante.Domain.csproj" />
+    <Project Path="src/MiRestaurante.Infrastructure/MiRestaurante.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MiRestaurante.Api.FunctionalTests/MiRestaurante.Api.FunctionalTests.csproj" />
+    <Project Path="tests/MiRestaurante.Application.UnitTests/MiRestaurante.Application.UnitTests.csproj" />
+    <Project Path="tests/MiRestaurante.Domain.UnitTests/MiRestaurante.Domain.UnitTests.csproj" />
+    <Project Path="tests/MiRestaurante.Infrastructure.IntegrationTests/MiRestaurante.Infrastructure.IntegrationTests.csproj" />
   </Folder>
 </Solution>

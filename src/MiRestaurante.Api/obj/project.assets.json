@@ -36,6 +36,42 @@
             "related": ".pdb;.xml"
           }
         }
+      },
+      "MiRestaurante.Application/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v10.0",
+        "dependencies": {
+          "MiRestaurante.Domain": "1.0.0"
+        },
+        "compile": {
+          "bin/placeholder/MiRestaurante.Application.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/MiRestaurante.Application.dll": {}
+        }
+      },
+      "MiRestaurante.Domain/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v10.0",
+        "compile": {
+          "bin/placeholder/MiRestaurante.Domain.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/MiRestaurante.Domain.dll": {}
+        }
+      },
+      "MiRestaurante.Infrastructure/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v10.0",
+        "dependencies": {
+          "MiRestaurante.Application": "1.0.0"
+        },
+        "compile": {
+          "bin/placeholder/MiRestaurante.Infrastructure.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/MiRestaurante.Infrastructure.dll": {}
+        }
       }
     }
   },
@@ -75,10 +111,27 @@
         "microsoft.openapi.2.12.0.nupkg.sha512",
         "microsoft.openapi.nuspec"
       ]
+    },
+    "MiRestaurante.Application/1.0.0": {
+      "type": "project",
+      "path": "../MiRestaurante.Application/MiRestaurante.Application.csproj",
+      "msbuildProject": "../MiRestaurante.Application/MiRestaurante.Application.csproj"
+    },
+    "MiRestaurante.Domain/1.0.0": {
+      "type": "project",
+      "path": "../MiRestaurante.Domain/MiRestaurante.Domain.csproj",
+      "msbuildProject": "../MiRestaurante.Domain/MiRestaurante.Domain.csproj"
+    },
+    "MiRestaurante.Infrastructure/1.0.0": {
+      "type": "project",
+      "path": "../MiRestaurante.Infrastructure/MiRestaurante.Infrastructure.csproj",
+      "msbuildProject": "../MiRestaurante.Infrastructure/MiRestaurante.Infrastructure.csproj"
     }
   },
   "projectFileDependencyGroups": {
     "net10.0": [
+      "MiRestaurante.Application >= 1.0.0",
+      "MiRestaurante.Infrastructure >= 1.0.0",
       "Microsoft.AspNetCore.OpenApi >= 10.0.12"
     ]
   },
@@ -107,7 +160,14 @@
       "frameworks": {
         "net10.0": {
           "targetAlias": "net10.0",
-          "projectReferences": {}
+          "projectReferences": {
+            "/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Application/MiRestaurante.Application.csproj": {
+              "projectPath": "/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Application/MiRestaurante.Application.csproj"
+            },
+            "/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Infrastructure/MiRestaurante.Infrastructure.csproj": {
+              "projectPath": "/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Infrastructure/MiRestaurante.Infrastructure.csproj"
+            }
+          }
         }
       },
       "warningProperties": {
