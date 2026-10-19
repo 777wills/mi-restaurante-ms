@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/MiRestaurante.Api/MiRestaurante.Api.csproj": {}
+    "/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Api/MiRestaurante.Api.csproj": {}
   },
   "projects": {
-    "/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/MiRestaurante.Api/MiRestaurante.Api.csproj": {
+    "/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Api/MiRestaurante.Api.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/MiRestaurante.Api/MiRestaurante.Api.csproj",
+        "projectUniqueName": "/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Api/MiRestaurante.Api.csproj",
         "projectName": "MiRestaurante.Api",
-        "projectPath": "/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/MiRestaurante.Api/MiRestaurante.Api.csproj",
+        "projectPath": "/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Api/MiRestaurante.Api.csproj",
         "packagesPath": "/home/wills/.nuget/packages/",
-        "outputPath": "/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/MiRestaurante.Api/obj/",
+        "outputPath": "/media/wills/Diplomado Universidad FET/proyecto/mi-restaurante-ms/src/MiRestaurante.Api/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/home/wills/.nuget/NuGet/NuGet.Config"

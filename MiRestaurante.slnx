@@ -1,3 +1,5 @@
 <Solution>
-  <Project Path="MiRestaurante.Api/MiRestaurante.Api.csproj" />
+  <Folder Name="/src/">
+    <Project Path="src/MiRestaurante.Api/MiRestaurante.Api.csproj" />
+  </Folder>
 </Solution>

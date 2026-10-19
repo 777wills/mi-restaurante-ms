@@ -5,14 +5,14 @@
       "name": "MiRestaurante.Api (https)",
       "type": "dotnet",
       "request": "launch",
-      "projectPath": "${workspaceFolder}/MiRestaurante.Api/MiRestaurante.Api.csproj",
+      "projectPath": "${workspaceFolder}/src/MiRestaurante.Api/MiRestaurante.Api.csproj",
       "launchConfigurationId": "TargetFramework=;https"
     },
     {
       "name": "MiRestaurante.Api (http)",
       "type": "dotnet",
       "request": "launch",
-      "projectPath": "${workspaceFolder}/MiRestaurante.Api/MiRestaurante.Api.csproj",
+      "projectPath": "${workspaceFolder}/src/MiRestaurante.Api/MiRestaurante.Api.csproj",
       "launchConfigurationId": "TargetFramework=;http"
     }
   ]
