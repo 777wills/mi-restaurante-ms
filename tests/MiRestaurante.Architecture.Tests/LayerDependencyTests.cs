@@ -17,10 +17,10 @@ public class LayerDependencyTests
     {
         TestResult result = Types.InAssembly(Layers.Load(layer))
             .ShouldNot()
-            .HaveDependencyOn(forbiddenLayer)
+            .HaveDependencyOnAny(forbiddenLayer)
             .GetResult();
 
-        result.FailingTypeNames.Should().BeNullOrEmpty(
+        result.FailingTypes.Should().BeNullOrEmpty(
             "{0} must not depend on {1}", layer, forbiddenLayer);
     }
 
@@ -31,10 +31,10 @@ public class LayerDependencyTests
             .That()
             .ResideInNamespace(Layers.Controllers)
             .ShouldNot()
-            .HaveDependencyOn(Layers.Infrastructure)
+            .HaveDependencyOnAny(Layers.Infrastructure)
             .GetResult();
 
-        result.FailingTypeNames.Should().BeNullOrEmpty(
+        result.FailingTypes.Should().BeNullOrEmpty(
             "controllers must use application services instead of infrastructure");
     }
 
@@ -44,13 +44,9 @@ public class LayerDependencyTests
         IEnumerable<string> nonFrameworkReferences = Layers.Load(Layers.Domain)
             .GetReferencedAssemblies()
             .Select(reference => reference.Name ?? string.Empty)
-            .Where(name => !IsFrameworkAssembly(name));
+            .Where(name => !Layers.IsFrameworkAssembly(name));
 
         nonFrameworkReferences.Should().BeEmpty(
             "the domain must not depend on NuGet packages or other projects");
     }
-
-    private static bool IsFrameworkAssembly(string name) =>
-        name.StartsWith("System", StringComparison.Ordinal)
-        || name is "netstandard" or "mscorlib";
 }
