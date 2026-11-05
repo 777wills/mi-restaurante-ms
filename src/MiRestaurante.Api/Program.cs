@@ -1,4 +1,5 @@
 using MiRestaurante.Api.ErrorHandling;
+using MiRestaurante.Application.Dishes;
 using MiRestaurante.Infrastructure;
 using Scalar.AspNetCore;
 
@@ -11,6 +12,8 @@ builder.Services.AddControllers(options =>
         options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
         options.ModelBindingMessageProvider.SetMissingRequestBodyRequiredValueAccessor(
             () => RequestBodyMessages.MissingBody);
+        options.ModelBindingMessageProvider.SetNonPropertyAttemptedValueIsInvalidAccessor(
+            _ => RequestBodyMessages.InvalidValue);
     })
     .ConfigureApiBehaviorOptions(options =>
         options.InvalidModelStateResponseFactory =
@@ -21,6 +24,7 @@ builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = 
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddInfrastructure();
+builder.Services.AddScoped<IDishService, DishService>();
 
 if (builder.Environment.IsDevelopment())
 {

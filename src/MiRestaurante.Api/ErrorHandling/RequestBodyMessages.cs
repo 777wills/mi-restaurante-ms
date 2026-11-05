@@ -5,6 +5,7 @@ namespace MiRestaurante.Api.ErrorHandling;
 internal static class RequestBodyMessages
 {
     public const string InvalidFormat = "El cuerpo de la petición no tiene un formato válido.";
+    public const string InvalidValue = "El valor indicado no es válido.";
     public const string MissingBody = "Se requiere un cuerpo en la petición.";
 
     // The JSON formatter reports its errors under keys starting with '$'; their text exposes .NET types and positions.

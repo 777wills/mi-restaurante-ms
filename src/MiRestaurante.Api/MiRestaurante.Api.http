@@ -1,1 +1,40 @@
 @MiRestaurante.Api_HostAddress = http://localhost:5110
+
+### Listar los platos activos
+GET {{MiRestaurante.Api_HostAddress}}/api/v1/dishes
+Accept: application/json
+
+### Listar solo los platos disponibles
+GET {{MiRestaurante.Api_HostAddress}}/api/v1/dishes?available=true
+Accept: application/json
+
+### Consultar un plato
+GET {{MiRestaurante.Api_HostAddress}}/api/v1/dishes/2
+Accept: application/json
+
+### Crear un plato
+POST {{MiRestaurante.Api_HostAddress}}/api/v1/dishes
+Content-Type: application/json
+
+{
+  "name": "Changua",
+  "description": "Caldo de leche con huevo, cebolla larga y cilantro, servido con calado.",
+  "price": 12000,
+  "imageUrl": "https://example.com/changua.jpg",
+  "isAvailable": true
+}
+
+### Reemplazar un plato
+PUT {{MiRestaurante.Api_HostAddress}}/api/v1/dishes/6
+Content-Type: application/json
+
+{
+  "name": "Changua",
+  "description": "Caldo de leche con huevo, cebolla larga y cilantro, servido con calado.",
+  "price": 13500,
+  "imageUrl": "https://example.com/changua.jpg",
+  "isAvailable": false
+}
+
+### Retirar un plato del menú (borrado lógico)
+DELETE {{MiRestaurante.Api_HostAddress}}/api/v1/dishes/6
