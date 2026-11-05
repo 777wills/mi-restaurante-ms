@@ -809,16 +809,20 @@ Para este caso conviene `prepend`: la regla de la entrevista se antepone y el re
 
 ### Paso 1: crear el preset
 
-En la raíz del repositorio (así queda versionado):
+En la raíz del repositorio, dentro de una única carpeta `speckit-custom/` que agrupa las personalizaciones de Spec Kit (así quedan versionadas y no se mezclan con `src/` ni `tests/`; más adelante pueden sumarse `extensions/` y `bundles/` en la misma carpeta):
 
 ```text
-presets/specify-interview/
-├── preset.yml
-└── commands/
-    └── speckit.specify.md
+speckit-custom/
+└── presets/
+    └── specify-interview/
+        ├── preset.yml
+        └── commands/
+            └── speckit.specify.md
 ```
 
-`presets/specify-interview/preset.yml`:
+> No guardes la fuente dentro de `.specify/`: Spec Kit copia los presets instalados a `.specify/presets/<id>/` y esa carpeta la gestiona la CLI.
+
+`speckit-custom/presets/specify-interview/preset.yml`:
 
 ```yaml
 schema_version: "1.0"
@@ -845,7 +849,7 @@ provides:
 - Las versiones van entre comillas.
 - `requires.speckit_version` debe ser compatible con la versión instalada (`specify version`).
 
-`presets/specify-interview/commands/speckit.specify.md`:
+`speckit-custom/presets/specify-interview/commands/speckit.specify.md`:
 
 ```markdown
 ## Regla obligatoria: entrevista previa
@@ -869,14 +873,14 @@ Notas sobre este archivo:
 Desde la raíz del repositorio:
 
 ```bash
-specify preset add --dev ./presets/specify-interview
+specify preset add --dev ./speckit-custom/presets/specify-interview
 ```
 
 `--dev` instala una **copia** de la carpeta; no queda enlazada. Después de editar el preset hay que reinstalarlo:
 
 ```bash
 specify preset remove specify-interview
-specify preset add --dev ./presets/specify-interview
+specify preset add --dev ./speckit-custom/presets/specify-interview
 ```
 
 ### Paso 3: verificar
@@ -941,7 +945,7 @@ Cada preset es una carpeta con su `preset.yml` (ver [sección 13](#13-modificar-
 ```bash
 mkdir spec-kit-custom && cd spec-kit-custom
 git init
-# copiar aquí presets/specify-interview/ y el README
+# copiar aquí el contenido de speckit-custom/ (presets/, extensions/...) y el README
 git add -A
 git commit -m "feat: preset specify-interview"
 gh repo create spec-kit-custom --public --source=. --push

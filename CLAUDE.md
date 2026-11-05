@@ -56,4 +56,4 @@ dotnet test --solution MiRestaurante.slnx --results-directory TestResults --cove
 dotnet reportgenerator -reports:"TestResults/coverage.cobertura.*.xml" -targetdir:TestResults/report -reporttypes:"TextSummary;Html" "-assemblyfilters:+MiRestaurante.Domain;+MiRestaurante.Application;+MiRestaurante.Infrastructure;+MiRestaurante.Api" minimumCoverageThresholds:lineCoverage=80
 ```
 
-El umbral se escribe sin guion inicial (`minimumCoverageThresholds:...`). Si la cobertura no llega al 80 %, ReportGenerator termina con código 1. Solo durante la feature `001-quality-baseline` ese resultado es informativo y no bloquea; a partir de la primera feature con código de negocio es obligatorio.
+El umbral se escribe sin guion inicial (`minimumCoverageThresholds:...`). Si la cobertura no llega al 80 %, ReportGenerator termina con código 1. Desde la feature `003-persistence-local-env` la puerta es obligatoria y no admite exclusiones (solo en `001-quality-baseline` fue informativa).

@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "presets": {
+    "specify-interview": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:54496d50465bea7d6ab0bb8871ed7ef2d8a2ccec754efcc89d77d5c35111ab41",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.specify"
+        ]
+      },
+      "registered_skills": {
+        "claude": [
+          "speckit-specify"
+        ]
+      },
+      "installed_at": "2026-11-04T22:47:12.121665+00:00"
+    }
+  }
+}

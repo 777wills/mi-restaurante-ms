@@ -1,7 +1,10 @@
 <!--
 SYNC IMPACT REPORT (temporal: eliminar antes de confirmar el commit)
-- Cambio de versión: 1.0.0 → 1.0.1 (PATCH: correcciones y aclaraciones, sin cambio semántico).
+- Cambio de versión: 1.0.1 → 1.1.0 (MINOR: guía materialmente ampliada con una regla nueva).
 - Principios modificados (sin renombrar):
+  · VIII. Convenciones de código e idioma: nueva regla que obliga a los agentes de IA a
+    responder siempre en español (excepto código, identificadores y citas literales).
+- Cambios previos incluidos en 1.0.1:
   · II. Arquitectura limpia en cuatro capas: se admite en Application el ensamblado
     `Microsoft.Extensions.Logging.Abstractions` (transitivo del núcleo de EF Core) para
     `ILogger<T>`.
@@ -220,9 +223,16 @@ nomenclatura y de una aserción hacen que cada fallo explique por sí solo qué 
   estar en inglés (por ejemplo, `Dish`, `Order`, `/api/v1/orders`). Los mensajes dirigidos al
   usuario, la documentación y los artefactos de Spec Kit (spec, plan, tasks) DEBEN estar en
   español.
+- Los agentes de IA que trabajen en este repositorio DEBEN responder siempre en español en
+  toda interacción con el equipo (respuestas, explicaciones, resúmenes, preguntas y mensajes
+  de commit), incluso si la petición está escrita en otro idioma. Las únicas excepciones son
+  el código y los identificadores, que siguen la regla de inglés anterior, y las citas
+  literales de errores, comandos o documentación externa.
 
 **Razón**: unas convenciones uniformes y verificables por herramienta eliminan discusiones de
-estilo, y tratar las advertencias como errores hace efectivo el análisis de nulabilidad.
+estilo, y tratar las advertencias como errores hace efectivo el análisis de nulabilidad. Fijar
+el español como idioma de los agentes mantiene toda la comunicación del proyecto coherente
+con su documentación.
 
 ### IX. Entorno de desarrollo local
 
@@ -315,4 +325,4 @@ NuGet, Docker Hub y las notas de versión de .NET el 2026-11-04, y se fija en lo
   principios y `MiRestaurante.Architecture.Tests` automatiza el principio II. Un cambio que
   viole un principio sin justificación en Complexity Tracking NO DEBE integrarse.
 
-**Versión**: 1.0.1 | **Ratificada**: 2026-11-04 | **Última enmienda**: 2026-11-04
+**Versión**: 1.1.0 | **Ratificada**: 2026-11-04 | **Última enmienda**: 2026-11-04
