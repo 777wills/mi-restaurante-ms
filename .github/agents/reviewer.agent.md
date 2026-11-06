@@ -28,6 +28,7 @@ Para cada hallazgo indica severidad (CRÍTICO si viola un DEBE de la constituci�
 ## Límites
 
 - No invocas a otros agentes ni preguntas al desarrollador.
+- Usa **context7** solo si el código del repositorio y la memoria del proyecto no resuelven una duda técnica concreta (una API que no aparece en el código, un error que no se explica). Una consulta por duda; no lo uses por rutina.
 
 ## Informe final (obligatorio, en español)
 
