@@ -21,7 +21,8 @@ Documentar paso a paso un flujo de trabajo con [Spec Kit](https://github.com/git
 13. [Modificar el comportamiento de un comando de Spec Kit](#13-modificar-el-comportamiento-de-un-comando-de-spec-kit)
 14. [Repositorio propio para presets y otros componentes (informativo)](#14-repositorio-propio-para-presets-y-otros-componentes-informativo)
 15. [Aseguramiento de la calidad del software generado](#15-aseguramiento-de-la-calidad-del-software-generado)
-16. [Agentes y subagentes en VS Code, Claude Code y OpenCode](#16-agentes-y-subagentes-en-vs-code-claude-code-y-opencode)
+16. [MCP: qué es, dónde buscarlos y el MCP de Playwright](#16-mcp-qué-es-dónde-buscarlos-y-el-mcp-de-playwright)
+17. [Agentes y subagentes en VS Code, Claude Code y OpenCode](#17-agentes-y-subagentes-en-vs-code-claude-code-y-opencode)
 
 ---
 
@@ -1093,7 +1094,7 @@ Un agente escribe código y pruebas muy rápido, pero **que compile y que las pr
 - La constitución del backend declara el TDD como **no negociable** (principio VI).
 - `/speckit-tasks` genera las tareas de prueba antes que las de implementación en cada historia.
 - **TDD estructural**: el `test-developer` solo puede tocar `tests/**` y el `developer` solo `src/**`. Nadie puede «ajustar» una prueba para que pase.
-- El orquestador de `/speckit-implement` delega siempre el bloque Red antes del Green (ver [16.8](#168-speckit-implement-como-orquestador)).
+- El orquestador de `/speckit-implement` delega siempre el bloque Red antes del Green (ver [17.8](#178-speckit-implement-como-orquestador)).
 - El `test-developer` **confirma el Red**: registra si cada prueba falla por compilación o por aserción, y reporta como hallazgo una prueba que pasa antes de que exista el código.
 
 **Límite.** La confirmación del Red la **declara el propio agente** en su informe; ninguna herramienta la comprueba de forma independiente. El historial de commits (prueba en un commit, código en el siguiente) sería la evidencia objetiva, pero el flujo actual no hace commits por tarea.
@@ -1128,7 +1129,7 @@ Además, en cada punto de control de historia el orquestador pide al `test-devel
 
 - Backend: Stryker.NET, incorporado como herramienta **informativa** en la constitución 1.2.0. Lo ejecuta el `reviewer` sobre los archivos `src/**` de la feature, y el CI del backend en un job aparte sobre los archivos cambiados en la PR.
 - Cada superviviente se clasifica como **prueba débil** (falta una aserción), **mutante equivalente** (el cambio no altera el comportamiento) o **código sobrante** (se puede eliminar).
-- Detalles, comando y prototipo: [16.9](#169-mutation-testing-con-strykernet).
+- Detalles, comando y prototipo: [17.9](#179-mutation-testing-con-strykernet).
 
 **Evidencia.**
 
@@ -1165,9 +1166,21 @@ La skill [review-pr](.claude/skills/review-pr/SKILL.md) está en ambos repos:
 **Revisión en GitHub: Copilot como revisor de la PR.**
 
 - **Manual**: en la PR, panel **Reviewers** → **Copilot** → **Request**. Desde la terminal: `gh pr create --reviewer @copilot` o `gh pr edit <número> --add-reviewer @copilot`.
-- **Automática**: en el _ruleset_ de `main` (ver [15.6](#156-integración-continua-ci-y-protección-de-rama)) se activa la revisión automática de Copilot, opcionalmente también en cada nuevo _push_ («Review new pushes»).
+- **Automática**: con un _ruleset_ en el repositorio (pasos a continuación).
 - **Instrucciones que usa**: lee de la rama de la PR `.github/copilot-instructions.md`, `.github/instructions/**/*.instructions.md`, `AGENTS.md`, `CLAUDE.md` y `REVIEW.md`. En estos repos ya existe `CLAUDE.md`, que remite a la constitución.
 - **Qué deja**: comentarios de tipo _Comment_, que **no cuentan como aprobación** ni sustituyen la revisión humana. Sus sugerencias se clasifican con la misma tabla.
+
+#### Revisión automática por repositorio, con un ruleset (recomendada)
+
+Hay que hacerlo en cada repo, backend y frontend:
+
+1. En el repo: **Settings** → **Rules** → **Rulesets** → **New ruleset** → **New branch ruleset**.
+2. **Ruleset name**: por ejemplo `proteger-main`. **Enforcement status**: **Active**.
+3. **Target branches** → **Add target** → **Include default branch**.
+4. En **Branch rules**, marca **Automatically request Copilot code review**. Opciones:
+   - **Review new pushes**: vuelve a revisar cada push nuevo a la PR. Sin ella, revisa una sola vez.
+   - **Review draft pull requests**: revisa también las PR en borrador.
+5. **Create**.
 
 ### 15.6 Integración continua (CI) y protección de rama
 
@@ -1207,7 +1220,235 @@ Con el _ruleset_ activo, el botón **Merge** de la PR queda deshabilitado mientr
 
 ---
 
-## 16. Agentes y subagentes en VS Code, Claude Code y OpenCode
+## 16. MCP: qué es, dónde buscarlos y el MCP de Playwright
+
+### Qué es MCP
+
+[MCP (Model Context Protocol)](https://modelcontextprotocol.io/docs/getting-started/intro) es un estándar abierto para conectar aplicaciones de IA con sistemas externos: archivos, bases de datos, APIs, navegadores, documentación, etc. La documentación oficial lo compara con un puerto USB-C: así como USB-C conecta cualquier dispositivo con un mismo conector, MCP conecta cualquier agente con cualquier herramienta usando un mismo protocolo. Un servidor MCP se escribe una vez y funciona en Claude Code, GitHub Copilot, Cursor, OpenCode y demás clientes compatibles.
+
+Participantes ([arquitectura oficial](https://modelcontextprotocol.io/docs/learn/architecture)):
+
+| Participante | Qué es                                                                  | Ejemplo en este proyecto                |
+| ------------ | ----------------------------------------------------------------------- | --------------------------------------- |
+| **Host**     | La aplicación de IA que usa el desarrollador                            | Claude Code, VS Code con Copilot        |
+| **Cliente**  | Conexión que el host abre con **un** servidor (un cliente por servidor) | Lo crea el host automáticamente         |
+| **Servidor** | Programa que ofrece capacidades al agente; puede ser local o remoto     | `angular-cli`, `context7`, `playwright` |
+
+```mermaid
+flowchart LR
+    subgraph HOST ["Host: Claude Code / VS Code"]
+        C1["Cliente 1"]
+        C2["Cliente 2"]
+        C3["Cliente 3"]
+    end
+    C1 -- stdio --> S1["angular-cli<br/>(local)"]
+    C2 -- "HTTP" --> S2["context7<br/>(remoto)"]
+    C3 -- stdio --> S3["playwright<br/>(local)"]
+```
+
+Un servidor puede ofrecer tres tipos de capacidades (_primitivas_):
+
+- **Tools (herramientas):** funciones que el agente ejecuta, por ejemplo `browser_navigate` de Playwright o `query-docs` de Context7.
+- **Resources (recursos):** datos de contexto que el agente lee, por ejemplo el esquema de una base de datos.
+- **Prompts:** plantillas reutilizables que aparecen como comandos en el chat.
+
+Y se comunica por uno de dos transportes:
+
+- **stdio:** el host lanza el servidor como un proceso local (normalmente con `npx`, `uvx` o un binario). Es el caso de `angular-cli` y `playwright`.
+- **Streamable HTTP:** el servidor es remoto y se accede por URL, con autenticación por cabecera u OAuth. Es el caso de `context7` (sección 3).
+
+> Un servidor MCP stdio ejecuta código en tu máquina con tus permisos, y uno remoto actúa sobre servicios externos con tus credenciales. Revisa el publicador, el comando o la URL y los permisos antes de instalarlo. Los servidores que leen contenido externo (como un navegador) exponen al agente a _prompt injection_.
+
+### Dónde buscar MCPs
+
+| Fuente                                                                            | Qué ofrece                                                                                                                                 |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| [Registro oficial de MCP](https://registry.modelcontextprotocol.io/)              | Catálogo mantenido por el proyecto MCP, con API pública. Es la fuente de la que se alimentan otros catálogos.                              |
+| [GitHub MCP Registry](https://github.com/mcp)                                     | Catálogo curado con botón **Install** para VS Code. Aquí están, entre otros, Playwright, Context7, GitHub, Chrome DevTools, Figma y DBHub. |
+| VS Code: **Chat: Open Customizations → Browse**                                   | Búsqueda desde el editor (filtro `@type:mcp`). También en la vista de extensiones, sección _MCP Servers_.                                  |
+| [Anthropic Directory](https://claude.ai/directory)                                | Conectores revisados por Anthropic; los remotos se agregan a Claude Code con `claude mcp add`.                                             |
+| [`modelcontextprotocol/servers`](https://github.com/modelcontextprotocol/servers) | Servidores de referencia (filesystem, git, fetch, memory…), útiles para aprender cómo se construye uno.                                    |
+| Documentación de cada producto                                                    | Muchos fabricantes publican su propio servidor oficial (por ejemplo Angular CLI: `ng mcp`).                                                |
+
+Criterios para elegir: prefiere servidores **oficiales** del fabricante de la herramienta, con mantenimiento reciente (releases y commits), licencia clara y documentación de seguridad. Instala solo los que vayas a usar: cada servidor agrega herramientas al contexto del agente.
+
+### Dónde guarda cada agente la configuración
+
+Es útil saberlo tanto para instalar como para desinstalar:
+
+| Agente / ámbito                    | Archivo                                                               | Formato      |
+| ---------------------------------- | --------------------------------------------------------------------- | ------------ |
+| Claude Code, ámbito `local` (def.) | `~/.claude.json`, dentro de `projects.<ruta-del-proyecto>.mcpServers` | `mcpServers` |
+| Claude Code, ámbito `user`         | `~/.claude.json`, en `mcpServers` de nivel superior                   | `mcpServers` |
+| Claude Code, ámbito `project`      | `.mcp.json` en la raíz del repositorio (versionado)                   | `mcpServers` |
+| VS Code, usuario                   | `~/.config/Code/User/mcp.json`                                        | `servers`    |
+| VS Code, workspace                 | `.vscode/mcp.json`                                                    | `servers`    |
+| Copilot (harness Copilot), global  | `~/.copilot/mcp-config.json`                                          | `mcpServers` |
+| OpenCode                           | `~/.config/opencode/opencode.json` u `opencode.json` del proyecto     | `mcp`        |
+
+Este repositorio ya tiene dos archivos de proyecto con el servidor `angular-cli`: `.mcp.json` (Claude Code) y `.vscode/mcp.json` (VS Code). Ojo: el formato de VS Code usa la clave `servers` y el portable usa `mcpServers`; no se copian entradas de uno a otro sin adaptarlas.
+
+### Desinstalar el MCP de Playwright
+
+[Playwright MCP](https://github.com/microsoft/playwright-mcp) (paquete npm `@playwright/mcp`, de Microsoft) se ejecuta con `npx`, así que no queda un paquete global que desinstalar: «desinstalarlo» consiste en **quitar su entrada de la configuración de cada agente** y, si se quiere, limpiar los archivos que dejó.
+
+#### 1. Localizar dónde está registrado
+
+```bash
+grep -ril playwright ~/.claude.json ~/.config/Code/User/mcp.json ~/.copilot/mcp-config.json \
+  ~/.config/opencode .mcp.json .vscode/mcp.json 2>/dev/null
+```
+
+En Claude Code también:
+
+```bash
+claude mcp list
+claude mcp get playwright   # muestra el ámbito (scope) en el que está
+```
+
+#### 2. Quitarlo de Claude Code
+
+```bash
+# Usa el ámbito que indicó `claude mcp get`: local, project o user
+claude mcp remove playwright --scope local
+```
+
+- Si está en ámbito `project`, el comando edita `.mcp.json`; revisa el diff antes de hacer commit, porque afecta a todo el equipo.
+- Si el servidor llegó dentro de un **plugin**, no se quita con `claude mcp remove`: se desinstala el plugin (`/plugin`).
+- Para apagarlo sin borrarlo, usa el interruptor del panel `/mcp` dentro de Claude Code.
+
+#### 3. Quitarlo de VS Code (GitHub Copilot)
+
+Cualquiera de estas opciones:
+
+- **Chat: Open Customizations → MCP Servers**, menú `...` del servidor → **Uninstall**.
+- **MCP: List Servers** en la paleta de comandos (`Ctrl+Shift+P`) → `playwright` → **Uninstall**.
+- Vista de extensiones → sección **MCP SERVERS - INSTALLED** → `playwright` → desinstalar.
+- Si **Uninstall** no aparece (servidor configurado a mano), borra **solo su entrada** del archivo correspondiente (`mcp.json` de usuario, `.vscode/mcp.json` o `.mcp.json`), no el archivo completo.
+
+**Disable** lo desactiva sin borrar la configuración; **Stop Server** solo termina la ejecución actual y el agente puede volver a iniciarlo.
+
+#### 4. Quitarlo de otros agentes
+
+- **OpenCode:** borra la entrada `playwright` del objeto `mcp` en `opencode.json`.
+- **Otros clientes:** borra la entrada `playwright` del bloque `mcpServers` de su archivo de configuración.
+
+#### 5. Limpiar residuos (opcional)
+
+- **Perfil persistente del navegador:** por defecto Playwright MCP guarda sesiones (cookies, logins) por proyecto en `~/.cache/ms-playwright/mcp-{canal}-{hash}` (Linux). Bórralo si no lo vas a volver a usar:
+
+  ```bash
+  ls -d ~/.cache/ms-playwright/mcp-*
+  rm -rf ~/.cache/ms-playwright/mcp-*
+  ```
+
+- **Navegadores descargados** (`~/.cache/ms-playwright/chromium-*`, `firefox-*`, etc.): no los borres si otro proyecto usa Playwright para pruebas E2E, porque la carpeta es compartida.
+- **Caché de `npx`** (`~/.npm/_npx`): se regenera sola; no hace falta tocarla.
+
+#### 6. Verificar
+
+- El `grep` del paso 1 no debe imprimir nada.
+- `claude mcp list` no debe mostrar `playwright`.
+- En VS Code, `playwright` ya no aparece en **MCP: List Servers**.
+
+### Ejemplo: usar Playwright MCP en este repositorio
+
+Playwright MCP permite que el agente abra un navegador real, navegue, haga clic, llene formularios, lea la consola y tome capturas. No usa visión: trabaja sobre el **árbol de accesibilidad** de la página, lo que lo hace rápido y determinista. En `mi-restaurante-ui` sirve para que el agente **verifique visualmente** lo que construye con Angular, por ejemplo el contrato del shell (`specs/001-project-baseline/contracts/shell-ui.md`).
+
+> Playwright también ofrece [Playwright CLI con skills](https://github.com/microsoft/playwright-cli), que según su documentación consume menos tokens en agentes de programación. El MCP sigue siendo adecuado para exploración interactiva donde conviene mantener el estado del navegador entre pasos.
+
+#### 1. Prerrequisitos
+
+- Node.js 18 o superior (este proyecto usa Node.js 26).
+- La aplicación levantada: `pnpm start` (sirve en `http://localhost:4200`).
+
+#### 2. Registrar el servidor para el proyecto
+
+Versión vigente al redactar esta guía: `@playwright/mcp` **0.0.84**. Para una configuración compartida en el repositorio conviene fijar la versión en lugar de usar `@latest`, para que todo el equipo use la misma.
+
+**Claude Code** (ámbito `project`, escribe en `.mcp.json`):
+
+```bash
+claude mcp add --scope project playwright -- npx -y @playwright/mcp@0.0.84 --isolated
+```
+
+`.mcp.json` quedaría así:
+
+```json
+{
+  "mcpServers": {
+    "angular-cli": {
+      "command": "/home/wills/.nvm/versions/node/v26.13.0/bin/node",
+      "args": ["node_modules/@angular/cli/bin/ng.js", "mcp"]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@0.0.84", "--isolated"]
+    }
+  }
+}
+```
+
+**VS Code** (`.vscode/mcp.json`, formato `servers`):
+
+```json
+{
+  "servers": {
+    "angular-cli": {
+      "command": "/home/wills/.nvm/versions/node/v26.13.0/bin/node",
+      "args": ["${workspaceFolder}/node_modules/@angular/cli/bin/ng.js", "mcp"]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@0.0.84", "--isolated"]
+    }
+  }
+}
+```
+
+Opciones útiles (se agregan a `args`):
+
+| Opción                 | Efecto                                                                                   |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `--isolated`           | Perfil en memoria: cada sesión empieza limpia y no deja datos en disco.                  |
+| `--headless`           | Sin ventana visible. Por defecto el navegador se ve, lo que es útil para aprender.       |
+| `--device "iPhone 15"` | Emula un dispositivo móvil desde el inicio (el proyecto es _mobile-first_).              |
+| `--output-dir <ruta>`  | Carpeta para capturas y archivos generados; agrégala a `.gitignore` si queda en el repo. |
+
+Al abrir Claude Code, aprueba el servidor de `.mcp.json` cuando lo pida; compruébalo con `/mcp`. En VS Code, el servidor debe aparecer en **MCP: List Servers**.
+
+#### 3. Pedirle al agente una verificación
+
+Con `pnpm start` corriendo, envía en el chat:
+
+```text
+Usa el MCP de Playwright (no las herramientas de navegador integradas) para revisar http://localhost:4200:
+
+1. Indica el atributo lang de <html> y el <title> del documento.
+2. Confirma que existe un <header> con un único <h1> «Mi Restaurante» y una región <main>.
+3. Lista los mensajes de consola de nivel warning o error.
+4. Redimensiona la ventana a 375x812 y toma una captura de pantalla completa.
+
+Compara el resultado con specs/001-project-baseline/contracts/shell-ui.md y reporta cualquier diferencia. No modifiques archivos.
+```
+
+#### 4. Qué observar
+
+- El agente debe invocar herramientas del servidor `playwright`, por ejemplo `browser_navigate`, `browser_snapshot`, `browser_evaluate`, `browser_console_messages`, `browser_resize` y `browser_take_screenshot`. Expande cada llamada en el chat para ver su salida.
+- Resultado esperado según el contrato: `lang="es-CO"`, título «Mi Restaurante», `<header>` con el `<h1>` y `<main>` presentes, sin errores en consola.
+- La respuesta del agente debe basarse en lo que devolvieron las herramientas; una respuesta plausible sin llamadas al MCP no cuenta como verificación.
+
+Otros usos en este repositorio:
+
+- Después de `/speckit-implement`, pedir al agente que recorra la vista nueva y confirme los escenarios de aceptación de la spec.
+- Reproducir un bug: navegar, interactuar y leer la consola y las peticiones de red.
+- Revisar el formato regional en pantalla (precios en COP, fechas en español) cuando existan vistas con datos.
+
+> Esta verificación es exploratoria y no sustituye las pruebas automatizadas del proyecto (`pnpm test`). Las capturas generadas no se versionan.
+
+---
+
+## 17. Agentes y subagentes en VS Code, Claude Code y OpenCode
 
 Esta sección explica qué es un agente, en qué se diferencia de una skill y de las instrucciones, cómo se construye y cómo se combinan varios agentes con el patrón **orquestador → subagentes**. Termina con los agentes reales de este repositorio y del frontend (`mi-restaurante-ui`), y con `/speckit-implement` convertido en orquestador.
 
@@ -1215,7 +1456,7 @@ Fuentes oficiales consultadas (noviembre de 2026): [VS Code: custom agents](http
 
 > En la demostración se usa el **chat de Copilot en VS Code con el harness Local**. El _harness_ es el motor que ejecuta la sesión (Local, Copilot, Claude, Codex) y decide qué formatos y herramientas están disponibles. Se elige en el control **Session Target** del chat.
 
-### 16.1 Qué es un agente, cómo y cuándo usarlo
+### 17.1 Qué es un agente, cómo y cuándo usarlo
 
 Un **agente personalizado** es un rol reutilizable que combina tres cosas:
 
@@ -1242,7 +1483,7 @@ Un **subagente** es un agente al que otro agente delega una tarea. Trabaja en **
 
 **Cuándo no hace falta:** tareas puntuales (basta el prompt), conversaciones de ida y vuelta muy iterativas (el subagente empieza sin contexto) o normas que aplican siempre (van en las instrucciones del proyecto).
 
-### 16.2 Diferencias con las skills y las instrucciones (rules)
+### 17.2 Diferencias con las skills y las instrucciones (rules)
 
 ![Instrucciones, skills y agentes](docs/diagrams/01-agente-vs-skill-vs-instrucciones.png)
 
@@ -1259,7 +1500,7 @@ Un **subagente** es un agente al que otro agente delega una tarea. Trabaja en **
 
 Regla práctica: **las normas van en las instrucciones, los procedimientos en skills y los roles en agentes**. No se duplican: un agente no repite la constitución, la lee.
 
-### 16.3 Anatomía de un agente
+### 17.3 Anatomía de un agente
 
 Los tres productos usan la misma estructura: un archivo Markdown con **frontmatter YAML** (configuración) y un **cuerpo** (el prompt de sistema del rol).
 
@@ -1287,7 +1528,7 @@ Estructura recomendada del **cuerpo** (la siguen todos los agentes de este repo)
 
 > Una instrucción como «no edites archivos» guía al modelo, pero **no es un permiso**. La restricción real la da la lista de herramientas.
 
-### 16.4 Cómo crear un agente
+### 17.4 Cómo crear un agente
 
 **VS Code (Copilot):**
 
@@ -1360,7 +1601,7 @@ Los agentes de este repositorio están **solo en formato VS Code**. No se mantie
 
 En **Claude Code** hace falta además `"env": { "CLAUDE_CODE_FORK_SUBAGENT": "0" }` en `.claude/settings.json`. En sesiones interactivas y de VS Code, los subagentes arrancan en segundo plano y el _fork mode_ está activo por defecto. Con esa variable, el orquestador **espera** el informe de cada subagente y además no puede crear _forks_ (copias de sí mismo con todas sus herramientas).
 
-### 16.5 Patrón orquestador → subagentes
+### 17.5 Patrón orquestador → subagentes
 
 ![Patrón orquestador](docs/diagrams/03-patron-orquestador.png)
 
@@ -1400,7 +1641,7 @@ Los subagentes **no pueden preguntar al usuario**: en Claude Code no tienen la h
 | Agente `primary` / `subagent` | OpenCode                | Los primarios se usan directamente (`Tab`); los subagentes se invocan con `@` o mediante `task`     |
 | Harness                       | VS Code                 | Motor de la sesión (Local, Copilot, Claude, Codex); cambia formatos y herramientas disponibles      |
 
-### 16.6 Agentes del backend (este repositorio)
+### 17.6 Agentes del backend (este repositorio)
 
 ![Agentes del backend](docs/diagrams/04-agentes-backend.png)
 
@@ -1419,11 +1660,11 @@ Decisiones de diseño:
 - **TDD estructural**: quien escribe las pruebas (`test-developer`) no toca `src/**`, y quien implementa (`developer`) no toca `tests/**`. Nadie puede «ajustar» una prueba para que pase.
 - **El arquitecto actúa en el plan, no en la spec**: `/speckit-specify` define el _qué_ sin tecnología. El arquitecto investiga y propone; la conversación principal entrevista al desarrollador (skill `interview`) y escribe `research.md`.
 - **Verificación funcional del developer**: `curl` como evidencia (código y cuerpo, incluido un caso de error) y el navegador integrado en `/scalar` como demostración visual.
-- **El revisor mira el _cómo_**: constitución, simplicidad, buenas prácticas de C#, _test smells_ (pruebas vacías, tautológicas, que solo prueban el mock…) y **mutation testing** informativo con Stryker.NET, solo sobre los archivos `src/**` de la feature. Ver [16.9](#169-mutation-testing-con-strykernet).
+- **El revisor mira el _cómo_**: constitución, simplicidad, buenas prácticas de C#, _test smells_ (pruebas vacías, tautológicas, que solo prueban el mock…) y **mutation testing** informativo con Stryker.NET, solo sobre los archivos `src/**` de la feature. Ver [17.9](#179-mutation-testing-con-strykernet).
 - **El auditor mira el _qué_**: sigue la skill `speckit-converge` y compara el código con spec, plan, tareas y constitución.
 - Todos tienen `user-invocable: false`: no ensucian el selector y solo se usan como subagentes.
 
-### 16.7 Agentes del frontend (`mi-restaurante-ui`)
+### 17.7 Agentes del frontend (`mi-restaurante-ui`)
 
 ![Agentes del frontend](docs/diagrams/05-agentes-frontend.png)
 
@@ -1437,7 +1678,7 @@ Se usan los **mismos nombres de rol** en `mi-restaurante-ui/.github/agents/`, as
 | `reviewer`       | Añade accesibilidad WCAG 2.2 AA (lint `templateAccessibility`, árbol accesible, foco, contraste y capturas en ambos temas) y entrega la lista de vistas que el desarrollador debe pasar por **axe DevTools** (paso humano exigido por la constitución)             |
 | `spec-auditor`   | Idéntico                                                                                                                                                                                                                                                           |
 
-### 16.8 `/speckit-implement` como orquestador
+### 17.8 `/speckit-implement` como orquestador
 
 ![Flujo de /speckit-implement orquestado](docs/diagrams/06-speckit-implement-orquestado.png)
 
@@ -1493,7 +1734,7 @@ La traza se escribe por instrucción del preset. Los hooks `SubagentStart` y `Su
 
 Requisitos para el backend: Docker activo (pruebas de integración y PostgreSQL) y el MCP `context7` configurado en VS Code.
 
-### 16.9 Mutation testing con Stryker.NET
+### 17.9 Mutation testing con Stryker.NET
 
 El _mutation testing_ introduce cambios pequeños (mutantes) en el código de producción y vuelve a ejecutar las pruebas: si ninguna falla, el mutante **sobrevive** y revela una prueba débil o código que nadie verifica. Es la evidencia objetiva que complementa la revisión de _test smells_.
 
@@ -1515,7 +1756,7 @@ Los dos supervivientes son buenos ejemplos para clasificar en clase:
 1. `ThenBy(d => d.Id)` → `ThenByDescending`: el índice único impide que dos platos activos tengan el mismo nombre, así que el desempate nunca actúa. Es un **mutante equivalente** o, visto con rigor, **código sobrante**.
 2. Eliminar `throw NameInUse(...)` en `SaveAsync`: la violación del índice único se traduce después al mismo error 422, así que el comportamiento observable no cambia. La comprobación previa es redundante para las pruebas actuales: el revisor debe decidir si es **código sobrante** o si falta una prueba que la distinga.
 
-### 16.10 Generar las imágenes de los diagramas
+### 17.10 Generar las imágenes de los diagramas
 
 Los diagramas fuente están en [docs/diagrams/](docs/diagrams/) en formato `.excalidraw` y se editan con la extensión **Excalidraw** de VS Code (`pomdtr.excalidraw-editor`). Este documento muestra una captura `.png` de cada uno, con el mismo nombre de archivo:
 
