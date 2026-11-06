@@ -18,6 +18,42 @@
         ]
       },
       "installed_at": "2026-11-04T22:47:12.121665+00:00"
+    },
+    "implement-orchestrator": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:2b59bbcc821e68f0728334641a599889583d6da9dfbb4a038ac2c0e05b1b30ce",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.implement"
+        ]
+      },
+      "registered_skills": {
+        "claude": [
+          "speckit-implement"
+        ]
+      },
+      "installed_at": "2026-11-06T14:47:24.889367+00:00"
+    },
+    "plan-architect": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:3771833c2abbdf01de6a692508e5832eda06b0c94432fd5a6fdae0deedd38578",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.plan"
+        ]
+      },
+      "registered_skills": {
+        "claude": [
+          "speckit-plan"
+        ]
+      },
+      "installed_at": "2026-11-06T14:47:25.195665+00:00"
     }
   }
 }

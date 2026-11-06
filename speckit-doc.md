@@ -20,6 +20,8 @@ Documentar paso a paso un flujo de trabajo con [Spec Kit](https://github.com/git
 12. [Flujo completo de Spec Kit](#12-flujo-completo-de-spec-kit)
 13. [Modificar el comportamiento de un comando de Spec Kit](#13-modificar-el-comportamiento-de-un-comando-de-spec-kit)
 14. [Repositorio propio para presets y otros componentes (informativo)](#14-repositorio-propio-para-presets-y-otros-componentes-informativo)
+15. [Aseguramiento de la calidad del software generado](#15-aseguramiento-de-la-calidad-del-software-generado)
+16. [Agentes y subagentes en VS Code, Claude Code y OpenCode](#16-agentes-y-subagentes-en-vs-code-claude-code-y-opencode)
 
 ---
 
@@ -462,6 +464,7 @@ Una única API web REST que muestra el menú de un restaurante y permite hacer p
 - las decisiones que ya están tomadas;
 - las inconsistencias o deuda que encuentres;
 - las decisiones que faltan.
+
 <!-- Si tienes en mente algunas decisiones técnicas que quieras incluir puedes hacerlo aquí -->
 
 2. Verifica cada decisión tomada o propuesta que vas a realizar con la documentación oficial y vigente:
@@ -1049,3 +1052,490 @@ specify preset resolve speckit.specify
 - Revisa el código de cualquier preset, extensión o catálogo de terceros antes de instalarlo: pueden incluir scripts y comandos ejecutables.
 - Marca `--install-allowed` solo en catálogos propios o revisados; los demás se dejan solo para descubrimiento.
 - Documenta en el `README.md` del repositorio qué hace cada componente y cómo instalarlo.
+
+---
+
+## 15. Aseguramiento de la calidad del software generado
+
+Un agente escribe código y pruebas muy rápido, pero **que compile y que las pruebas pasen no demuestra que el software sea correcto**: las pruebas pueden ser débiles, estar vacías o comprobar lo mismo que preparan. Esta sección explica cada mecanismo de calidad, dónde se aplica en la configuración de estos dos repositorios y qué límites tiene.
+
+| Tema                                                                                              | Dónde se aplica                                                                                                            | ¿Bloquea la integración?          |
+| ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| [Pruebas desde criterios de aceptación](#151-pruebas-generadas-desde-los-criterios-de-aceptación) | Plantilla de spec (Given/When/Then), `test-developer`, `reviewer` (_test smells_)                                          | No (revisión)                     |
+| [TDD](#152-tdd-red--green--refactor)                                                              | Constitución (principio VI del backend), roles separados `test-developer` / `developer`, orden Red → Green del orquestador | No (proceso)                      |
+| [Cobertura](#153-cobertura-qué-dice-y-qué-no)                                                     | ReportGenerator (backend) y Vitest (frontend) con umbral del 80 % de líneas                                                | **Sí**                            |
+| [Mutation testing](#154-mutation-testing-como-criterio-de-calidad)                                | Stryker.NET en el `reviewer` y en un job aparte del CI del backend                                                         | No (informativo)                  |
+| [Revisión de PR asistida por IA](#155-revisión-de-pr-asistida-por-ia)                             | Skill `/review-pr` (local) y revisor Copilot en GitHub                                                                     | No (decide el desarrollador)      |
+| [CI y protección de rama](#156-integración-continua-ci-y-protección-de-rama)                      | GitHub Actions en cada PR y _ruleset_ sobre `main`                                                                         | **Sí**, si la rama está protegida |
+
+### 15.1 Pruebas generadas desde los criterios de aceptación
+
+**Concepto.** Cada escenario de aceptación de la spec (`Given … When … Then …`) debe convertirse en al menos una prueba que **falle si el escenario no se cumple**. Una prueba generada por IA puede pasar sin probar nada:
+
+- **Vacía**: no tiene aserciones, o solo comprueba que «no lanza excepción».
+- **Tautológica**: afirma lo mismo que acaba de preparar (crea un objeto con nombre «Sopa» y comprueba que su nombre es «Sopa», sin pasar por el código bajo prueba).
+- **Solo prueba el mock**: verifica que se llamó a un doble de prueba, pero no el resultado.
+
+**Dónde se aplica:**
+
+- `/speckit-specify` exige escenarios de aceptación por historia (ver [specs/004-dishes-crud/spec.md](specs/004-dishes-crud/spec.md)).
+- El [test-developer](.github/agents/test-developer.agent.md) escribe cada prueba para que «pueda fallar por una razón concreta del requisito» y tiene prohibidas las pruebas vacías, tautológicas o que solo verifican el mock.
+- El [reviewer](.github/agents/reviewer.agent.md) revisa estos _test smells_ y otros (sin aserción, _assertion roulette_, `Skip`, reloj real, pruebas que no fallarían si se borrara el código).
+
+**Límite.** Hoy la trazabilidad criterio → prueba **solo está documentada**: no hay una matriz que la compruebe. Mejora recomendada (no implementada, para no alargar la demostración en clase): que el informe del `test-developer` incluya una tabla `escenario de la spec → prueba` y que el `reviewer` marque como hallazgo cada escenario sin prueba.
+
+### 15.2 TDD: Red → Green → Refactor
+
+**Concepto.** Primero se escribe una prueba que falla (**Red**), después el código mínimo para que pase (**Green**) y por último se mejora el diseño sin cambiar el comportamiento (**Refactor**). Con IA es especialmente útil: la prueba fija el requisito **antes** de que el modelo proponga una implementación, y evita que el modelo escriba pruebas a la medida de su propio código.
+
+**Dónde se aplica:**
+
+- La constitución del backend declara el TDD como **no negociable** (principio VI).
+- `/speckit-tasks` genera las tareas de prueba antes que las de implementación en cada historia.
+- **TDD estructural**: el `test-developer` solo puede tocar `tests/**` y el `developer` solo `src/**`. Nadie puede «ajustar» una prueba para que pase.
+- El orquestador de `/speckit-implement` delega siempre el bloque Red antes del Green (ver [16.8](#168-speckit-implement-como-orquestador)).
+- El `test-developer` **confirma el Red**: registra si cada prueba falla por compilación o por aserción, y reporta como hallazgo una prueba que pasa antes de que exista el código.
+
+**Límite.** La confirmación del Red la **declara el propio agente** en su informe; ninguna herramienta la comprueba de forma independiente. El historial de commits (prueba en un commit, código en el siguiente) sería la evidencia objetiva, pero el flujo actual no hace commits por tarea.
+
+### 15.3 Cobertura: qué dice y qué no
+
+**Concepto.** La cobertura de líneas mide **qué líneas se ejecutaron** durante las pruebas. Interpretación:
+
+- **Cobertura baja**: es una señal fiable de que falta probar algo.
+- **Cobertura alta**: **no** demuestra que las pruebas sean buenas. Una línea ejecutada por una prueba sin aserciones cuenta como cubierta.
+
+Por eso la cobertura se usa como **suelo** (mínimo exigido), nunca como objetivo ni como prueba de calidad.
+
+**Dónde se aplica:**
+
+| Repo     | Herramienta                    | Umbral                                                                                    | Cómo se ejecuta                                     |
+| -------- | ------------------------------ | ----------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Backend  | coverlet.MTP + ReportGenerator | 80 % de líneas sobre los cuatro ensamblados de producción, sin exclusiones (constitución) | Comandos de [CLAUDE.md](CLAUDE.md) y CI del backend |
+| Frontend | `@vitest/coverage-v8`          | 80 % de líneas (`coverageThresholds` en `angular.json`)                                   | `pnpm test:coverage` y CI del frontend              |
+
+Además, en cada punto de control de historia el orquestador pide al `test-developer` las **líneas sin cubrir** de los archivos de la feature, y decide caso a caso: falta una prueba (se escribe y se anota la desviación de TDD) o sobra código (se elimina).
+
+**Evidencia.** Cobertura global del backend: 98,5 %. `DishService.cs` tiene **100 %** de líneas cubiertas, y aun así el _mutation testing_ encontró dos cambios que ninguna prueba detecta (siguiente apartado).
+
+**Límite.** Sin CI, las puertas de cobertura solo se cumplen si alguien las ejecuta en local.
+
+### 15.4 Mutation testing como criterio de calidad
+
+**Concepto.** La herramienta introduce pequeños cambios (mutantes) en el código de producción, como invertir una condición o borrar una línea, y vuelve a ejecutar las pruebas. Si alguna prueba falla, el mutante queda **eliminado** (las pruebas lo detectan); si todas pasan, **sobrevive**. La **puntuación de mutación** es el porcentaje de mutantes eliminados. Mide lo que la cobertura no mide: **si las pruebas comprobarían un cambio de comportamiento**.
+
+**Dónde se aplica:**
+
+- Backend: Stryker.NET, incorporado como herramienta **informativa** en la constitución 1.2.0. Lo ejecuta el `reviewer` sobre los archivos `src/**` de la feature, y el CI del backend en un job aparte sobre los archivos cambiados en la PR.
+- Cada superviviente se clasifica como **prueba débil** (falta una aserción), **mutante equivalente** (el cambio no altera el comportamiento) o **código sobrante** (se puede eliminar).
+- Detalles, comando y prototipo: [16.9](#169-mutation-testing-con-strykernet).
+
+**Evidencia.**
+
+| Archivo          | Cobertura de líneas | Puntuación de mutación | Supervivientes                                                 |
+| ---------------- | ------------------- | ---------------------- | -------------------------------------------------------------- |
+| `DishService.cs` | 100 %               | 93,75 % (30 de 32)     | `ThenBy` → `ThenByDescending`; eliminar `throw NameInUse(...)` |
+
+**Límites.** Es lento (unos 6 minutos por proyecto de producción, con Docker) y no todo superviviente es un fallo: los equivalentes exigen juicio humano. Por eso **no es una puerta**: se publica para revisarse.
+
+### 15.5 Revisión de PR asistida por IA
+
+**Concepto.** La IA actúa como **primer revisor** de una solicitud de incorporación (_pull request_, PR): señala posibles problemas antes que una persona. Sus observaciones son sugerencias, no verdades: pueden ser falsos positivos u opiniones de estilo. **Decide el desarrollador**, con criterios explícitos:
+
+| Clasificación  | Cuándo                                                                                                                                                                                                         |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Aceptar**    | Hay evidencia verificable: viola un DEBE/NO DEBE de la constitución o un requisito de la spec (se cita el texto), o lo demuestra una prueba que falla, un mutante superviviente o la salida de un comando      |
+| **Cuestionar** | Es plausible pero falta evidencia, o contradice una decisión registrada en `plan.md`, `research.md` o _Complexity Tracking_. Antes de actuar se pide reproducirlo (una prueba que falle o un ejemplo concreto) |
+| **Descartar**  | Es una preferencia de estilo que ninguna norma recoge, un falso positivo comprobado contra el código, o añade complejidad sin justificarla (principio de simplicidad)                                          |
+
+**Revisión local antes de abrir la PR: skill `/review-pr`.**
+
+La skill [review-pr](.claude/skills/review-pr/SKILL.md) está en ambos repos:
+
+1. Ejecuta `git diff --name-only <base>...HEAD` (la base por defecto es `main`).
+2. Delega en el subagente `reviewer` con esos archivos como alcance (constitución, simplicidad, _test smells_ y, en el backend, mutación).
+3. Propone una clasificación por hallazgo con la tabla anterior y pregunta al desarrollador, uno por uno.
+4. **No corrige código**: devuelve la lista de acciones aceptadas y la evidencia que falta en las cuestionadas.
+
+```text
+/review-pr          # compara contra main
+/review-pr develop  # compara contra otra rama base
+```
+
+**Revisión en GitHub: Copilot como revisor de la PR.**
+
+- **Manual**: en la PR, panel **Reviewers** → **Copilot** → **Request**. Desde la terminal: `gh pr create --reviewer @copilot` o `gh pr edit <número> --add-reviewer @copilot`.
+- **Automática**: en el _ruleset_ de `main` (ver [15.6](#156-integración-continua-ci-y-protección-de-rama)) se activa la revisión automática de Copilot, opcionalmente también en cada nuevo _push_ («Review new pushes»).
+- **Instrucciones que usa**: lee de la rama de la PR `.github/copilot-instructions.md`, `.github/instructions/**/*.instructions.md`, `AGENTS.md`, `CLAUDE.md` y `REVIEW.md`. En estos repos ya existe `CLAUDE.md`, que remite a la constitución.
+- **Qué deja**: comentarios de tipo _Comment_, que **no cuentan como aprobación** ni sustituyen la revisión humana. Sus sugerencias se clasifican con la misma tabla.
+
+### 15.6 Integración continua (CI) y protección de rama
+
+**Qué es un pipeline de CI.** Es una secuencia automática de pasos (instalar, compilar, probar, medir) que un servidor ejecuta en **cada _push_ o PR**, siempre en una máquina limpia. El resultado (verde o rojo) no depende de la máquina ni de la disciplina de una persona: si una puerta falla, la PR queda marcada en rojo y todo el equipo lo ve. En GitHub, el pipeline se define en un archivo YAML dentro de `.github/workflows/` y lo ejecuta **GitHub Actions**. Cada archivo es un _workflow_, cada workflow tiene uno o varios _jobs_, y cada job tiene _steps_.
+
+**Workflows de estos repos** (se ejecutan en cada PR hacia `main` y en cada _push_ a `main`):
+
+| Repo     | Job        | Pasos                                                                                                                                                                                                  | Bloquea |
+| -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
+| Frontend | `calidad`  | `pnpm install --frozen-lockfile` → `pnpm lint` → pruebas con cobertura (≥ 80 %) → `pnpm build` → `pnpm audit`; publica el informe de cobertura como artefacto                                          | Sí      |
+| Backend  | `calidad`  | Las cuatro puertas de la constitución: `build` → `format --verify-no-changes` → `test` con cobertura → ReportGenerator con umbral del 80 %; publica el informe                                         | Sí      |
+| Backend  | `mutacion` | Solo en PR. Stryker.NET sobre los archivos `src/**/*.cs` cambiados frente a `main` (sin las migraciones generadas), agrupados por proyecto, con `--concurrency 4`; publica puntuación y supervivientes | No      |
+
+- Frontend: `mi-restaurante-ui/.github/workflows/ci.yml`, exigido por su constitución.
+- Backend: [.github/workflows/ci.yml](.github/workflows/ci.yml), exigido desde la enmienda 1.3.0 de la constitución. El job `mutacion` tiene `continue-on-error: true`: si falla, la PR no queda en rojo.
+- Cada job escribe su resultado en el **resumen del job** (`$GITHUB_STEP_SUMMARY`, visible en la pestaña _Summary_ de la ejecución) y sube los informes como **artefactos** descargables.
+
+**Qué bloquea y qué no, y por qué:**
+
+- **Bloquean** las puertas deterministas: compilación, formato, lint, pruebas, cobertura, build y auditoría. O se cumplen o no, sin interpretación.
+- **No bloquea** la mutación: los mutantes equivalentes exigen juicio humano y una puntuación fija como umbral invitaría a escribir pruebas solo para subirla.
+- **No bloquea** la revisión con IA: sus observaciones son sugerencias que clasifica el desarrollador.
+
+**Proteger la rama `main` con un _ruleset_.** El CI solo informa; lo que **impide** integrar con el CI en rojo es la protección de rama. Se configura una vez en cada repo, **después de la primera ejecución en verde** (los nombres de los _checks_ solo aparecen cuando ya se ejecutaron):
+
+1. En GitHub: **Settings** → **Rules** → **Rulesets** → **New ruleset** → **New branch ruleset**.
+2. Nombre (por ejemplo, `proteger-main`) y **Enforcement status**: **Active** (o **Evaluate** para probar sin bloquear).
+3. **Target branches** → **Add target** → **Include default branch**.
+4. Activa:
+   - **Restrict deletions** y **Block force pushes**.
+   - **Require a pull request before merging**.
+   - **Require status checks to pass** → **Add checks** → elige el job `calidad` del workflow (en el backend, **no** añadas `mutacion`).
+   - Opcional: **Automatically request Copilot code review**.
+5. **Create**.
+
+Con el _ruleset_ activo, el botón **Merge** de la PR queda deshabilitado mientras el job `calidad` esté en rojo.
+
+---
+
+## 16. Agentes y subagentes en VS Code, Claude Code y OpenCode
+
+Esta sección explica qué es un agente, en qué se diferencia de una skill y de las instrucciones, cómo se construye y cómo se combinan varios agentes con el patrón **orquestador → subagentes**. Termina con los agentes reales de este repositorio y del frontend (`mi-restaurante-ui`), y con `/speckit-implement` convertido en orquestador.
+
+Fuentes oficiales consultadas (noviembre de 2026): [VS Code: custom agents](https://code.visualstudio.com/docs/agent-customization/custom-agents), [referencia del archivo de agente](https://code.visualstudio.com/docs/agents/reference/custom-agent-file-reference), [subagentes en VS Code](https://code.visualstudio.com/docs/agents/run/subagents), [Claude Code: subagents](https://code.claude.com/docs/en/sub-agents), [Claude Code: hooks](https://code.claude.com/docs/en/hooks), [OpenCode: agents](https://opencode.ai/docs/agents/), [OpenCode: rules](https://opencode.ai/docs/rules/) y [OpenCode: skills](https://opencode.ai/docs/skills/).
+
+> En la demostración se usa el **chat de Copilot en VS Code con el harness Local**. El _harness_ es el motor que ejecuta la sesión (Local, Copilot, Claude, Codex) y decide qué formatos y herramientas están disponibles. Se elige en el control **Session Target** del chat.
+
+### 16.1 Qué es un agente, cómo y cuándo usarlo
+
+Un **agente personalizado** es un rol reutilizable que combina tres cosas:
+
+1. **Instrucciones** (el cuerpo del archivo), que actúan como prompt de sistema del rol.
+2. **Herramientas** permitidas (leer, editar, ejecutar comandos, navegador, MCP…).
+3. Opcionalmente, un **modelo** concreto.
+
+Un **subagente** es un agente al que otro agente delega una tarea. Trabaja en **su propio contexto**: no ve la conversación principal, recibe solo el encargo y devuelve solo su resultado. Así, la conversación principal no se llena con lecturas de archivos, logs o salidas de pruebas.
+
+**Cómo se usa** un agente:
+
+| Acción                       | VS Code (Copilot)                                        | Claude Code                                                      | OpenCode                                      |
+| ---------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------- |
+| Usarlo como agente principal | Elegirlo en el selector de agentes del chat              | `claude --agent <nombre>` o `"agent"` en `.claude/settings.json` | Tecla `Tab` para alternar agentes `primary`   |
+| Pedirle una tarea concreta   | Pedirlo en el prompt («usa el agente reviewer…»)         | `@"reviewer (agent)"` o pedirlo en el prompt                     | `@reviewer` en el mensaje                     |
+| Delegación automática        | El agente principal elige por la `description`           | Claude elige por la `description`                                | El agente primario elige por la `description` |
+| Herramienta de delegación    | `runSubagent` (harness Local) o `task` (harness Copilot) | `Agent`                                                          | `task`                                        |
+
+**Cuándo crear un agente:**
+
+- Hay un **rol recurrente** que necesita instrucciones, herramientas o formato de salida propios (revisor, implementador, investigador).
+- La tarea genera **mucha salida intermedia** que no hace falta en la conversación principal (ejecutar pruebas, explorar código).
+- Hay que **restringir herramientas** (un revisor que no pueda editar).
+
+**Cuándo no hace falta:** tareas puntuales (basta el prompt), conversaciones de ida y vuelta muy iterativas (el subagente empieza sin contexto) o normas que aplican siempre (van en las instrucciones del proyecto).
+
+### 16.2 Diferencias con las skills y las instrucciones (rules)
+
+![Instrucciones, skills y agentes](docs/diagrams/01-agente-vs-skill-vs-instrucciones.png)
+
+|                            | Instrucciones / rules                                                            | Skill                                                     | Agente                                                      |
+| -------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------- |
+| Pregunta que responde      | ¿Qué normas aplican siempre?                                                     | ¿Cómo se hace este procedimiento?                         | ¿Quién hace el trabajo y con qué herramientas?              |
+| Cuándo se carga            | Siempre (o según el patrón de archivo)                                           | Bajo demanda: por su descripción o con `/comando`         | Al elegirlo en el selector o al delegarle una tarea         |
+| Contexto                   | El de la conversación                                                            | El de la conversación                                     | Propio y aislado cuando actúa como subagente                |
+| Puede limitar herramientas | No                                                                               | No                                                        | Sí                                                          |
+| VS Code                    | `.github/copilot-instructions.md`, `*.instructions.md`, `AGENTS.md`, `CLAUDE.md` | `.github/skills/`, `.claude/skills/`, `.agents/skills/`   | `.github/agents/*.agent.md` (también lee `.claude/agents/`) |
+| Claude Code                | `CLAUDE.md`, `.claude/rules/*.md`                                                | `.claude/skills/`                                         | `.claude/agents/*.md`                                       |
+| OpenCode                   | `AGENTS.md` (usa `CLAUDE.md` si no existe)                                       | `.opencode/skills/`, `.claude/skills/`, `.agents/skills/` | `.opencode/agents/*.md` u `opencode.json`                   |
+| Ejemplo en este repo       | `CLAUDE.md` + constitución                                                       | `interview`, `speckit-*`                                  | `developer`, `reviewer`…                                    |
+
+Regla práctica: **las normas van en las instrucciones, los procedimientos en skills y los roles en agentes**. No se duplican: un agente no repite la constitución, la lee.
+
+### 16.3 Anatomía de un agente
+
+Los tres productos usan la misma estructura: un archivo Markdown con **frontmatter YAML** (configuración) y un **cuerpo** (el prompt de sistema del rol).
+
+![Anatomía de un agente](docs/diagrams/02-anatomia-agente.png)
+
+| Concepto                    | VS Code (`.agent.md`)                                                                   | Claude Code (`.claude/agents/*.md`)                                           | OpenCode (`.opencode/agents/*.md`)            |
+| --------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------- |
+| Identificador               | `name` (por defecto, el nombre del archivo)                                             | `name` (obligatorio)                                                          | Nombre del archivo                            |
+| Cuándo usarlo               | `description`                                                                           | `description` (obligatoria)                                                   | `description` (obligatoria)                   |
+| Herramientas                | `tools: ['read', 'edit', 'execute', 'browser', 'context7/*']`                           | `tools: Read, Edit, Bash` y `disallowedTools`                                 | `permission: { edit: deny, bash: ask }`       |
+| Modelo                      | `model: Claude Sonnet 5.5 (copilot)` (también admite una lista en orden de preferencia) | `model: opus \| sonnet \| haiku \| inherit`                                   | `model: proveedor/modelo`                     |
+| Visibilidad                 | `user-invocable: false` (oculto en el selector) y `disable-model-invocation`            | —                                                                             | `mode: primary \| subagent \| all` y `hidden` |
+| Qué subagentes puede llamar | `agents: [...]` + herramienta `agent`                                                   | `tools: Agent(a, b)` (solo como sesión principal con `--agent`)               | `permission.task`                             |
+| Subagentes anidados         | Desactivados por defecto (`chat.subagents.allowInvocationsFromSubagents`)               | Activados por defecto hasta 3 niveles; se impiden quitando `Agent` de `tools` | Se impiden con `permission.task: deny`        |
+| Otros                       | `handoffs`, `hooks`, `argument-hint`                                                    | `permissionMode`, `skills`, `memory`, `isolation`, `maxTurns`, `hooks`        | `temperature`, `steps`, `color`               |
+
+Estructura recomendada del **cuerpo** (la siguen todos los agentes de este repo):
+
+1. **Rol**: quién es y para qué existe.
+2. **Antes de empezar**: qué debe leer (constitución, plan, pruebas).
+3. **Qué puede tocar y qué no**.
+4. **Cómo trabajar**: pasos y verificación.
+5. **Límites**: no invoca a otros agentes ni pregunta al usuario.
+6. **Informe final** con formato fijo, que es el contrato con quien lo invocó.
+
+> Una instrucción como «no edites archivos» guía al modelo, pero **no es un permiso**. La restricción real la da la lista de herramientas.
+
+### 16.4 Cómo crear un agente
+
+**VS Code (Copilot):**
+
+1. `Ctrl+Shift+P` → **Chat: Open Customizations** → pestaña **Agents** → **New Agent** junto a _Workspace_.
+2. O crea el archivo a mano en `.github/agents/<nombre>.agent.md`.
+3. Verifica que aparece sin errores en **Open Customizations** y, si es visible, en el selector de agentes del chat.
+
+**Claude Code:**
+
+1. Pide a Claude que lo cree («crea un subagente reviewer de solo lectura en `.claude/agents/`») o escribe el archivo a mano.
+2. Si la carpeta `.claude/agents/` no existía al iniciar la sesión, reinicia Claude Code.
+3. Pruébalo con `@"reviewer (agent)"`.
+
+**OpenCode:**
+
+1. `opencode agent create`, o crea `.opencode/agents/<nombre>.md` (el nombre del archivo es el nombre del agente).
+2. Comprueba con `opencode agent list`.
+
+Ejemplo mínimo equivalente en los tres formatos (un revisor de solo lectura):
+
+```markdown
+---
+name: reviewer
+description: Revisa el código sin editarlo y reporta hallazgos con archivo y línea.
+tools: ["read", "search"]
+---
+
+Revisa el código indicado. Reporta solo hallazgos accionables con archivo:línea. No edites archivos.
+```
+
+```markdown
+---
+name: reviewer
+description: Revisa el código sin editarlo y reporta hallazgos con archivo y línea.
+tools: Read, Grep, Glob
+---
+
+Revisa el código indicado. Reporta solo hallazgos accionables con archivo:línea. No edites archivos.
+```
+
+```markdown
+---
+description: Revisa el código sin editarlo y reporta hallazgos con archivo y línea.
+mode: subagent
+permission:
+  edit: deny
+  bash: deny
+---
+
+Revisa el código indicado. Reporta solo hallazgos accionables con archivo:línea. No edites archivos.
+```
+
+El primero es `.github/agents/reviewer.agent.md` (VS Code), el segundo `.claude/agents/reviewer.md` (Claude Code) y el tercero `.opencode/agents/reviewer.md` (OpenCode).
+
+#### Portar los agentes de este repo a Claude Code u OpenCode
+
+Los agentes de este repositorio están **solo en formato VS Code**. No se mantienen copias en `.claude/agents/` porque el harness Local de VS Code también lee esa carpeta: con ambas, el selector y el orquestador verían **dos agentes con el mismo nombre**, sin una precedencia documentada. Para usarlos en otra herramienta, conviértelos en un repo o una rama donde no se use VS Code Local:
+
+| VS Code                            | Claude Code                               | OpenCode                                  |
+| ---------------------------------- | ----------------------------------------- | ----------------------------------------- |
+| `tools: ['read', 'search']`        | `tools: Read, Grep, Glob`                 | `permission: { edit: deny, bash: deny }`  |
+| `'edit'`                           | `Edit, Write`                             | `edit: allow`                             |
+| `'execute'`                        | `Bash`                                    | `bash: allow`                             |
+| `'web'`                            | `WebFetch, WebSearch`                     | `webfetch: allow`                         |
+| `'context7/*'`                     | `mcp__context7__*`                        | (hereda los MCP configurados)             |
+| `'browser'`                        | Sin equivalente nativo: MCP de Playwright | Sin equivalente nativo: MCP de Playwright |
+| `model: Claude Opus 5.5 (copilot)` | `model: opus`                             | `model: anthropic/<modelo>`               |
+| `user-invocable: false`            | —                                         | `mode: subagent` + `hidden: true`         |
+| (sin herramienta `agent`)          | Omitir `Agent` en `tools`                 | `permission: { task: deny }`              |
+
+En **Claude Code** hace falta además `"env": { "CLAUDE_CODE_FORK_SUBAGENT": "0" }` en `.claude/settings.json`. En sesiones interactivas y de VS Code, los subagentes arrancan en segundo plano y el _fork mode_ está activo por defecto. Con esa variable, el orquestador **espera** el informe de cada subagente y además no puede crear _forks_ (copias de sí mismo con todas sus herramientas).
+
+### 16.5 Patrón orquestador → subagentes
+
+![Patrón orquestador](docs/diagrams/03-patron-orquestador.png)
+
+Un **orquestador** recibe el objetivo completo, lo divide, entrega a cada subagente especializado su parte (con el prompt y el contexto necesarios) y decide el siguiente paso con cada informe. Reglas que se aplican en este proyecto:
+
+1. **El orquestador conoce y llama a cada subagente**, le entrega la tarea y recibe su respuesta.
+2. **El orquestador no escribe código**: solo planifica, delega, decide y actualiza el registro de tareas.
+3. **Los subagentes no se comunican entre sí ni se invocan unos a otros.** Si uno necesita algo de otro, lo indica en su informe y el orquestador decide.
+
+Para que la regla 3 funcione, todos los subagentes terminan con el mismo **contrato de informe**:
+
+```text
+ESTADO: COMPLETADO | BLOQUEADO | FALLIDO
+TAREAS: T014 ✓, T015 ✓, T016 ✗ (motivo)
+ARCHIVOS: (creados y modificados)
+EVIDENCIA: (comandos ejecutados y resultado resumido)
+NECESITA DE OTRO AGENTE: (qué y por qué, o «ninguno»)
+PREGUNTAS PARA EL DESARROLLADOR: (o «ninguna»)
+```
+
+Los subagentes **no pueden preguntar al usuario**: en Claude Code no tienen la herramienta `AskUserQuestion`, y en el patrón la conversación con el desarrollador la lleva solo el orquestador.
+
+| Ventaja                               | Coste                                                                 |
+| ------------------------------------- | --------------------------------------------------------------------- |
+| Contexto limpio en el orquestador     | Cada subagente empieza sin contexto y consume su propia cuota         |
+| Herramientas mínimas por rol          | Hay que escribir buenos encargos (el subagente no ve la conversación) |
+| Responsabilidades claras y auditables | Más coordinación y latencia                                           |
+
+**Conceptos vecinos** (no se usan en este flujo, pero conviene reconocerlos):
+
+| Concepto                      | Herramienta             | Qué es                                                                                              |
+| ----------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------- |
+| _Handoffs_                    | VS Code (harness Local) | Botones al final de una respuesta para pasar la conversación a otro agente con un prompt prellenado |
+| _Agent teams_                 | Claude Code             | Varias sesiones (compañeros) que se coordinan con mensajes y una lista de tareas compartida         |
+| _Fork_                        | Claude Code             | Subagente que hereda toda la conversación en vez de empezar limpio                                  |
+| Skill con `context: fork`     | Claude Code             | Ejecuta una skill dentro de un subagente                                                            |
+| Agente `primary` / `subagent` | OpenCode                | Los primarios se usan directamente (`Tab`); los subagentes se invocan con `@` o mediante `task`     |
+| Harness                       | VS Code                 | Motor de la sesión (Local, Copilot, Claude, Codex); cambia formatos y herramientas disponibles      |
+
+### 16.6 Agentes del backend (este repositorio)
+
+![Agentes del backend](docs/diagrams/04-agentes-backend.png)
+
+| Agente           | Archivo                                                           | Cuándo actúa                                       | Herramientas                                                         | Modelo     | Puede tocar                                 |
+| ---------------- | ----------------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------- | ---------- | ------------------------------------------- |
+| `architect`      | [architect.agent.md](.github/agents/architect.agent.md)           | Fase 0 de `/speckit-plan`                          | `read`, `search`, `web`, `context7/*`                                | Opus 5.5   | Nada (solo lectura)                         |
+| `test-developer` | [test-developer.agent.md](.github/agents/test-developer.agent.md) | Red y verificaciones de cobertura                  | `read`, `search`, `edit`, `execute`, `context7/*`, `todo`            | Sonnet 5.5 | `tests/**`                                  |
+| `developer`      | [developer.agent.md](.github/agents/developer.agent.md)           | Green, Refactor, configuración y línea base        | `read`, `search`, `edit`, `execute`, `browser`, `context7/*`, `todo` | Sonnet 5.5 | `src/**`, migraciones, configuración        |
+| `reviewer`       | [reviewer.agent.md](.github/agents/reviewer.agent.md)             | Cada punto de control de historia y revisión final | `read`, `search`, `execute`, `context7/*`                            | Opus 5.5   | Nada (solo lectura)                         |
+| `spec-auditor`   | [spec-auditor.agent.md](.github/agents/spec-auditor.agent.md)     | Al terminar todas las tareas                       | `read`, `search`, `edit`, `execute`                                  | Sonnet 5.5 | Solo añadir una fase al final de `tasks.md` |
+
+El juicio (diseño y revisión) usa Opus; la ejecución (pruebas, código y auditoría), Sonnet. Los agentes del frontend usan la misma asignación.
+
+Decisiones de diseño:
+
+- **TDD estructural**: quien escribe las pruebas (`test-developer`) no toca `src/**`, y quien implementa (`developer`) no toca `tests/**`. Nadie puede «ajustar» una prueba para que pase.
+- **El arquitecto actúa en el plan, no en la spec**: `/speckit-specify` define el _qué_ sin tecnología. El arquitecto investiga y propone; la conversación principal entrevista al desarrollador (skill `interview`) y escribe `research.md`.
+- **Verificación funcional del developer**: `curl` como evidencia (código y cuerpo, incluido un caso de error) y el navegador integrado en `/scalar` como demostración visual.
+- **El revisor mira el _cómo_**: constitución, simplicidad, buenas prácticas de C#, _test smells_ (pruebas vacías, tautológicas, que solo prueban el mock…) y **mutation testing** informativo con Stryker.NET, solo sobre los archivos `src/**` de la feature. Ver [16.9](#169-mutation-testing-con-strykernet).
+- **El auditor mira el _qué_**: sigue la skill `speckit-converge` y compara el código con spec, plan, tareas y constitución.
+- Todos tienen `user-invocable: false`: no ensucian el selector y solo se usan como subagentes.
+
+### 16.7 Agentes del frontend (`mi-restaurante-ui`)
+
+![Agentes del frontend](docs/diagrams/05-agentes-frontend.png)
+
+Se usan los **mismos nombres de rol** en `mi-restaurante-ui/.github/agents/`, así que el preset del orquestador es idéntico en ambos repos. Cambia el contenido de cada agente:
+
+| Agente           | Diferencias respecto del backend                                                                                                                                                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `architect`      | Añade el MCP `angular-cli` (buenas prácticas y documentación de Angular) y verifica el contrato OpenAPI del backend antes de proponer tipos                                                                                                                        |
+| `test-developer` | Vitest + `TestBed` + `HttpTestingController`, sin snapshots; cobertura con `pnpm ng test --coverage --no-watch --coverage-reporters text`                                                                                                                          |
+| `developer`      | `pnpm lint`, `test` y `build`; verificación en el navegador integrado (`:4200`) en móvil y escritorio, tema claro y oscuro; sigue la skill `frontend-design`. **Si el backend no responde en `:5110`, no lo arranca**: termina con `BLOQUEADO` e indica el comando |
+| `reviewer`       | Añade accesibilidad WCAG 2.2 AA (lint `templateAccessibility`, árbol accesible, foco, contraste y capturas en ambos temas) y entrega la lista de vistas que el desarrollador debe pasar por **axe DevTools** (paso humano exigido por la constitución)             |
+| `spec-auditor`   | Idéntico                                                                                                                                                                                                                                                           |
+
+### 16.8 `/speckit-implement` como orquestador
+
+![Flujo de /speckit-implement orquestado](docs/diagrams/06-speckit-implement-orquestado.png)
+
+El comportamiento se añade con dos **presets** propios (mecanismo de la [sección 13](#13-modificar-el-comportamiento-de-un-comando-de-spec-kit)), con estrategia `prepend`, de modo que el comando original de Spec Kit se conserva:
+
+| Preset                                                                                                | Comando             | Qué antepone                                                                                                                                            |
+| ----------------------------------------------------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [implement-orchestrator](speckit-custom/presets/implement-orchestrator/commands/speckit.implement.md) | `speckit.implement` | Rol de orquestador, tabla de subagentes, reglas de delegación, puntos de control, cierre con revisión final y bucle de convergencia, y traza en el chat |
+| [plan-architect](speckit-custom/presets/plan-architect/commands/speckit.plan.md)                      | `speckit.plan`      | Delegar la investigación de la Fase 0 en `architect` y entrevistar al desarrollador con sus recomendaciones                                             |
+
+Instalación (en cada repo, desde la raíz):
+
+```bash
+specify preset add --dev ./speckit-custom/presets/implement-orchestrator
+specify preset add --dev ./speckit-custom/presets/plan-architect
+specify preset list
+grep -n "Rol obligatorio: orquestador" .claude/skills/speckit-implement/SKILL.md
+```
+
+**Reglas principales del orquestador:**
+
+- Solo edita `tasks.md` (marca `[X]` y añade fases de revisión). Todo lo demás lo delega, incluido el paso de archivos de ignorados del comando base.
+- Agrupa en un bloque las tareas consecutivas de una fase que van al mismo subagente. Dentro de una historia, el bloque Red va antes que el Green.
+- Delega en paralelo los bloques `[P]` que van a subagentes distintos y tocan archivos distintos.
+- **Punto de control de cada historia**: cobertura (`test-developer`) y revisión (`reviewer`). Cada línea sin cubrir se decide caso a caso: si responde a un requisito, se escribe la prueba y se anota la desviación de TDD; si no, se elimina el código; si no está claro, pregunta. Los hallazgos se registran como tareas en `## Fase N: Revisión (punto de control USx)` y se delegan.
+- **Cierre**: revisión final y después `spec-auditor` en bucle hasta _Converged_. Se detiene y pregunta si una vuelta repite hallazgos o si algo exige una decisión humana.
+
+**Traza en el chat** (siempre activa, pensada para seguir el flujo en clase):
+
+```text
+🎬 [ORQUESTADOR] Inicio · feature specs/005-orders · 42 tareas pendientes
+📋 [FASE] 3: Historia 1 · bloques: test-developer(T014-T016), developer(T017-T019)
+➡️ [DELEGA → test-developer] T014-T016 · pruebas de US1 · motivo: Red antes que Green
+⬅️ [RESPUESTA ← test-developer] COMPLETADO · 3 archivos de prueba, Red confirmado por compilación
+✅ [TAREAS] Marcadas [X]: T014, T015, T016
+➡️ [DELEGA → developer] T017-T019 · servicio y controlador · motivo: Green
+⬅️ [RESPUESTA ← developer] COMPLETADO · build y pruebas en verde, curl 200/404 OK
+🔍 [PUNTO DE CONTROL] US1 · cobertura 96 % · 2 hallazgos
+🧭 [DECISIÓN] Registro T043-T044 como Fase 7: Revisión y las delego al developer
+🔁 [CONVERGENCIA] Vuelta 1 · converged
+🏁 [ORQUESTADOR] Fin · Converged · tareas 44/44
+```
+
+La traza se escribe por instrucción del preset. Los hooks `SubagentStart` y `SubagentStop` (en Claude Code) son deterministas, pero solo dicen «empezó» y «terminó», sin el porqué de cada decisión, por eso no se usan aquí.
+
+#### Demostración en el chat de VS Code
+
+1. Abre el chat, elige **Local** en _Session Target_ y el agente **Agent** (el predeterminado).
+2. Comprueba en **Chat: Open Customizations → Agents** que aparecen los cinco agentes sin errores.
+3. Ejecuta `/speckit-implement` sobre una feature con `tasks.md`.
+4. Cada delegación aparece como una «píldora» con el nombre del subagente y su actividad. Haz clic para ver su prompt, sus herramientas y su resultado. En la ventana _Agents_ se puede abrir el chat del subagente al lado (`Alt` + clic en la píldora).
+5. La traza del orquestador queda en el chat principal; los detalles de cada subagente, dentro de su píldora.
+
+Requisitos para el backend: Docker activo (pruebas de integración y PostgreSQL) y el MCP `context7` configurado en VS Code.
+
+### 16.9 Mutation testing con Stryker.NET
+
+El _mutation testing_ introduce cambios pequeños (mutantes) en el código de producción y vuelve a ejecutar las pruebas: si ninguna falla, el mutante **sobrevive** y revela una prueba débil o código que nadie verifica. Es la evidencia objetiva que complementa la revisión de _test smells_.
+
+- Herramienta: **Stryker.NET 5.0.0** (septiembre de 2026), herramienta local `dotnet-stryker`, incorporada en la constitución 1.2.0. Su runner para Microsoft.Testing.Platform (`--test-runner mtp`) está **en preview**; con xUnit v3 no admite `test-case-filter`.
+- Alcance: solo los archivos `src/**` que crea o modifica la feature, según `tasks.md` (un `--mutate` por archivo).
+- Resultado: **informativo**, no es una puerta de calidad. El revisor clasifica cada superviviente como _prueba débil_, _mutante equivalente_ o _código sobrante_.
+- Comando: está en la sección «Mutation testing» de [CLAUDE.md](CLAUDE.md), de donde lo toma el `reviewer`.
+
+Prototipo sobre `src/MiRestaurante.Application/Dishes/DishService.cs` (feature 004), 32 mutantes evaluados:
+
+| Modo                                       | Tiempo | Puntuación | Lección                                                                                   |
+| ------------------------------------------ | ------ | ---------- | ----------------------------------------------------------------------------------------- |
+| Solución (`--solution MiRestaurante.slnx`) | 17 min | 96,88 %    | Mide la cobertura una vez por proyecto de producción: correcto pero lento                 |
+| Proyecto, concurrencia por defecto (8)     | 6 min  | 100 %      | **Falso**: dos supervivientes salieron como `Timeout`, que Stryker cuenta como detectados |
+| Proyecto, `--concurrency 4`                | 6 min  | 93,75 %    | Resultado fiable; es el comando elegido                                                   |
+
+Los dos supervivientes son buenos ejemplos para clasificar en clase:
+
+1. `ThenBy(d => d.Id)` → `ThenByDescending`: el índice único impide que dos platos activos tengan el mismo nombre, así que el desempate nunca actúa. Es un **mutante equivalente** o, visto con rigor, **código sobrante**.
+2. Eliminar `throw NameInUse(...)` en `SaveAsync`: la violación del índice único se traduce después al mismo error 422, así que el comportamiento observable no cambia. La comprobación previa es redundante para las pruebas actuales: el revisor debe decidir si es **código sobrante** o si falta una prueba que la distinga.
+
+### 16.10 Generar las imágenes de los diagramas
+
+Los diagramas fuente están en [docs/diagrams/](docs/diagrams/) en formato `.excalidraw` y se editan con la extensión **Excalidraw** de VS Code (`pomdtr.excalidraw-editor`). Este documento muestra una captura `.png` de cada uno, con el mismo nombre de archivo:
+
+| Fuente                                           | Captura que debe existir                                |
+| ------------------------------------------------ | ------------------------------------------------------- |
+| `01-agente-vs-skill-vs-instrucciones.excalidraw` | `docs/diagrams/01-agente-vs-skill-vs-instrucciones.png` |
+| `02-anatomia-agente.excalidraw`                  | `docs/diagrams/02-anatomia-agente.png`                  |
+| `03-patron-orquestador.excalidraw`               | `docs/diagrams/03-patron-orquestador.png`               |
+| `04-agentes-backend.excalidraw`                  | `docs/diagrams/04-agentes-backend.png`                  |
+| `05-agentes-frontend.excalidraw`                 | `docs/diagrams/05-agentes-frontend.png`                 |
+| `06-speckit-implement-orquestado.excalidraw`     | `docs/diagrams/06-speckit-implement-orquestado.png`     |
+
+Pasos para cada diagrama:
+
+1. Abre el archivo `.excalidraw` en VS Code; se abre en el editor de Excalidraw.
+2. Si el tema es oscuro, cámbialo a claro con el botón de tema de la barra del editor (las capturas deben verse bien en GitHub).
+3. Ajusta lo que necesites: cada caja y su texto forman un grupo y se mueven juntos. Guarda con `Ctrl+S`.
+4. Pulsa `Shift+1` para encuadrar todo el diagrama y `Alt+Z` (modo zen) para ocultar las barras de herramientas.
+5. Haz una captura de área (en GNOME: `Shift+Impr Pant` y selecciona solo el lienzo con un pequeño margen blanco).
+6. Guárdala en `docs/diagrams/` con el nombre de la tabla.
+7. Comprueba la vista previa de este documento (`Ctrl+Shift+V`): la imagen debe verse en su subsección.
+
+Si cambias un diagrama, repite la captura: la imagen no se actualiza sola.

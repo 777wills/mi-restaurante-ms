@@ -1,26 +1,10 @@
 <!--
-SYNC IMPACT REPORT (temporal: eliminar antes de confirmar el commit)
-- Cambio de versión: 1.0.1 → 1.1.0 (MINOR: guía materialmente ampliada con una regla nueva).
-- Principios modificados (sin renombrar):
-  · VIII. Convenciones de código e idioma: nueva regla que obliga a los agentes de IA a
-    responder siempre en español (excepto código, identificadores y citas literales).
-- Cambios previos incluidos en 1.0.1:
-  · II. Arquitectura limpia en cuatro capas: se admite en Application el ensamblado
-    `Microsoft.Extensions.Logging.Abstractions` (transitivo del núcleo de EF Core) para
-    `ILogger<T>`.
-  · VII. Desarrollo guiado por pruebas: el parámetro de ReportGenerator pasa a
-    `minimumCoverageThresholds:lineCoverage=80` (sin guion inicial; con guion responde
-    «Unknown command line parameter» en 5.5.12 y no aplica el umbral).
-- Secciones modificadas: «Flujo de desarrollo y puertas de calidad» (puerta 4, mismo parámetro).
+- Cambio de versión: 1.2.0 → 1.3.0 (MINOR: se establece CI obligatorio y protección de `main`).
+- Secciones modificadas:
+  · «Flujo de desarrollo y puertas de calidad»: workflow de GitHub Actions por PR y push,
+    job obligatorio `calidad`, job informativo `mutacion` y ruleset requerido para `main`.
 - Secciones añadidas o eliminadas: ninguna.
-- Plantillas: sin cambios necesarios.
 - TODO diferidos: ninguno.
-- Inconsistencias del repositorio con esta constitución (no se corrigen aquí):
-  · Los 5 proyectos de pruebas referencian Microsoft.NET.Test.Sdk y xunit.runner.visualstudio.
-  · Architecture.Tests usa NetArchTest.Rules 1.3.2 (abandonado) en vez de
-    NetArchTest.eNhancedEdition; faltan las pruebas de las nuevas reglas del principio II.
-  · No existen Directory.Build.props (TreatWarningsAsErrors), compose.yaml ni el manifiesto
-    de herramientas locales (dotnet-ef, ReportGenerator).
 -->
 
 # Constitución de MiRestaurante
@@ -181,9 +165,10 @@ traducción de errores producen un contrato HTTP predecible con el mínimo de pi
   entre proyectos de prueba.
 - Herramientas: xUnit v3 (`xunit.v3`) sobre Microsoft.Testing.Platform (modo MTP de
   `dotnet test` activado en `global.json`), con proyectos de prueba ejecutables
-  (`OutputType` `Exe`), AwesomeAssertions para las aserciones y Moq para los dobles de
-  prueba. NO DEBEN mezclarse VSTest ni xUnit v2: los proyectos de prueba NO DEBEN
-  referenciar `Microsoft.NET.Test.Sdk` ni `xunit.runner.visualstudio`.
+  (`OutputType` `Exe`), AwesomeAssertions para las aserciones, Moq para los dobles de prueba
+  y Stryker.NET para mutation testing informativo. NO DEBEN mezclarse VSTest ni xUnit v2:
+  los proyectos de prueba NO DEBEN referenciar `Microsoft.NET.Test.Sdk` ni
+  `xunit.runner.visualstudio`.
 - Responsabilidad de cada proyecto de pruebas (cada uno referencia solo su capa):
   - `MiRestaurante.Domain.UnitTests`: pruebas unitarias de Domain.
   - `MiRestaurante.Application.UnitTests`: pruebas unitarias de servicios de aplicación y
@@ -282,6 +267,7 @@ NuGet, Docker Hub y las notas de versión de .NET el 2026-11-04, y se fija en lo
 | ReportGenerator (`dotnet-reportgenerator-globaltool`)             | 5                         | 5.5.12                                                           | Activo                                                          |
 | Microsoft.AspNetCore.Mvc.Testing                                  | 10                        | 10.0.14                                                          | Activo                                                          |
 | NetArchTest.eNhancedEdition                                       | 1                         | 1.4.5                                                            | En riesgo (sin versiones desde 2025-06)                         |
+| Stryker.NET (`dotnet-stryker`, herramienta local)                 | 5                         | 5.0.0                                                            | Activo; runner MTP en preview                                   |
 
 - **NetArchTest.eNhancedEdition**: se acepta pese al riesgo porque sustituye directamente a
   `NetArchTest.Rules` 1.3.2, abandonado desde 2021-05, y su API es mínima. Si deja de cargar
@@ -304,8 +290,16 @@ NuGet, Docker Hub y las notas de versión de .NET el 2026-11-04, y se fija en lo
      con todas las pruebas en verde, incluidas las de arquitectura (requiere Docker).
   4. ReportGenerator sobre los informes Cobertura con
      `minimumCoverageThresholds:lineCoverage=80`, terminando con código de salida 0.
-- No se implementa CI/CD por ahora. Introducirlo requiere una enmienda, y el pipeline DEBE
-  ejecutar las mismas puertas.
+- La mutación con Stryker.NET es un paso informativo de revisión, no una puerta de calidad.
+  El job `mutacion` DEBERÍA ejecutarla únicamente sobre los archivos `src/**/*.cs` cambiados
+  frente a `main`. NO DEBE bloquear la integración y DEBE publicar la puntuación y los
+  mutantes supervivientes en el resumen del job y como artefacto. Cada mutante superviviente
+  DEBE clasificarse como prueba débil, mutante equivalente o código sobrante.
+- Un workflow de GitHub Actions DEBE ejecutarse en cada pull request hacia `main` y en cada
+  push a `main`. Su job `calidad` DEBE ejecutar las mismas cuatro puertas locales y bloquear
+  la integración si alguna falla.
+- La rama `main` DEBE protegerse en GitHub con un ruleset que exija pull request y que el
+  check `calidad` esté en verde.
 - Los commits DEBERÍAN seguir Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`,
   `test:`…), con la descripción en español.
 
@@ -325,4 +319,4 @@ NuGet, Docker Hub y las notas de versión de .NET el 2026-11-04, y se fija en lo
   principios y `MiRestaurante.Architecture.Tests` automatiza el principio II. Un cambio que
   viole un principio sin justificación en Complexity Tracking NO DEBE integrarse.
 
-**Versión**: 1.1.0 | **Ratificada**: 2026-11-04 | **Última enmienda**: 2026-11-04
+**Versión**: 1.3.0 | **Ratificada**: 2026-11-04 | **Última enmienda**: 2026-11-06

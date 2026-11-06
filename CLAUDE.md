@@ -40,7 +40,7 @@ dotnet run --project src/MiRestaurante.Api --launch-profile http
 
 ### Herramientas locales y puerta de cobertura
 
-Las herramientas (`dotnet-ef`, ReportGenerator) se declaran en `.config/dotnet-tools.json`; no se instala nada global. Los informes se generan en `TestResults/` (ignorado por git), que se borra antes de cada ejecución porque los informes llevan marca de tiempo y no se sobrescriben.
+Las herramientas (`dotnet-ef`, ReportGenerator, Stryker.NET) se declaran en `.config/dotnet-tools.json`; no se instala nada global. Los informes se generan en `TestResults/` (ignorado por git), que se borra antes de cada ejecución porque los informes llevan marca de tiempo y no se sobrescriben.
 
 ```bash
 # Restaurar las herramientas locales
@@ -57,3 +57,30 @@ dotnet reportgenerator -reports:"TestResults/coverage.cobertura.*.xml" -targetdi
 ```
 
 El umbral se escribe sin guion inicial (`minimumCoverageThresholds:...`). Si la cobertura no llega al 80 %, ReportGenerator termina con código 1. Desde la feature `003-persistence-local-env` la puerta es obligatoria y no admite exclusiones (solo en `001-quality-baseline` fue informativa).
+
+El CI (`.github/workflows/ci.yml`) ejecuta estas mismas puertas en el job `calidad` en cada PR y push a `main`; el job `mutacion` (solo en PR, informativo) aplica el comando de la sección siguiente a los archivos `src/**/*.cs` cambiados. Si cambias un comando de esta guía, actualiza también el workflow.
+
+### Mutation testing (informativo)
+
+Stryker.NET (`dotnet-stryker`, herramienta local) se ejecuta **por proyecto de producción**, desde su carpeta, mutando solo los archivos de la feature (un `--mutate` por archivo, con ruta relativa al proyecto). Requiere Docker. Cada ejecución tarda unos 6 minutos.
+
+```bash
+# Ejemplo: archivos de la feature en MiRestaurante.Application
+cd src/MiRestaurante.Application
+dotnet stryker --test-runner mtp --concurrency 4 \
+  --test-project ../../tests/MiRestaurante.Application.UnitTests/MiRestaurante.Application.UnitTests.csproj \
+  --test-project ../../tests/MiRestaurante.Infrastructure.IntegrationTests/MiRestaurante.Infrastructure.IntegrationTests.csproj \
+  --test-project ../../tests/MiRestaurante.Api.FunctionalTests/MiRestaurante.Api.FunctionalTests.csproj \
+  --mutate "Dishes/DishService.cs" \
+  --output ../../TestResults/stryker/MiRestaurante.Application --reporter cleartext --reporter json
+```
+
+| Proyecto mutado                                      | `--test-project`                                                                  |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `MiRestaurante.Domain` y `MiRestaurante.Application` | `Application.UnitTests`, `Infrastructure.IntegrationTests`, `Api.FunctionalTests` |
+| `MiRestaurante.Infrastructure`                       | `Infrastructure.IntegrationTests`, `Api.FunctionalTests`                          |
+| `MiRestaurante.Api`                                  | `Api.FunctionalTests`                                                             |
+
+- `--concurrency 4` es obligatorio: con la concurrencia por defecto los contenedores de PostgreSQL saturan la máquina y Stryker marca como `Timeout` (y cuenta como detectados) mutantes que en realidad sobreviven.
+- `Domain.UnitTests` no tiene pruebas todavía y Stryker no lo admite con MTP; no se incluye.
+- El detalle por mutante queda en `TestResults/stryker/<Proyecto>/reports/mutation-report.json` (`files.<ruta>.mutants[].status`). Todo `Survived` o `Timeout` se revisa y se clasifica como prueba débil, mutante equivalente o código sobrante.

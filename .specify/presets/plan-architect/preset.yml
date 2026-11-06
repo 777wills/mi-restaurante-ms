@@ -1,0 +1,18 @@
+schema_version: "1.0"
+
+preset:
+  id: "plan-architect"
+  name: "Plan con arquitecto"
+  version: "1.0.0"
+  description: "Hace que /speckit-plan delegue la investigación de la Fase 0 en el subagente architect"
+
+requires:
+  speckit_version: ">=1.2.0"
+
+provides:
+  templates:
+    - type: "command"
+      name: "speckit.plan"
+      file: "commands/speckit.plan.md"
+      description: "Antepone la delegación de la investigación técnica al flujo de plan"
+      strategy: "prepend"

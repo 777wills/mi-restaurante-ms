@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  calidad:
+    name: calidad
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - run: dotnet tool restore
+
+      - name: "Puerta 1: compilación sin advertencias"
+        run: dotnet build MiRestaurante.slnx
+
+      - name: "Puerta 2: formato"
+        run: dotnet format --verify-no-changes MiRestaurante.slnx
+
+      - name: "Puerta 3: pruebas con cobertura (Testcontainers usa el Docker del runner)"
+        run: dotnet test --solution MiRestaurante.slnx --results-directory TestResults --coverlet --coverlet-output-format cobertura
+
+      - name: "Puerta 4: cobertura de líneas ≥ 80 %"
+        run: >-
+          dotnet reportgenerator
+          -reports:"TestResults/coverage.cobertura.*.xml"
+          -targetdir:TestResults/report
+          -reporttypes:"TextSummary;Html;MarkdownSummaryGithub"
+          "-assemblyfilters:+MiRestaurante.Domain;+MiRestaurante.Application;+MiRestaurante.Infrastructure;+MiRestaurante.Api"
+          minimumCoverageThresholds:lineCoverage=80
+
+      - name: Publicar el resumen de cobertura
+        if: always()
+        run: |
+          if [ -f TestResults/report/SummaryGithub.md ]; then
+            cat TestResults/report/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Publicar el informe de cobertura
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cobertura-backend
+          path: TestResults/report/
+          if-no-files-found: ignore
+
+  mutacion:
+    name: mutacion (informativo)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    # Informativo: un fallo aquí no pone la PR en rojo.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - run: dotnet tool restore
+
+      - name: Mutar los archivos src/**/*.cs cambiados (sin migraciones)
+        run: |
+          mapfile -t files < <(git diff --name-only --diff-filter=d "origin/${GITHUB_BASE_REF}...HEAD" -- 'src/**/*.cs' ':(exclude)src/*/Migrations/*')
+          if [ ${#files[@]} -eq 0 ]; then
+            echo 'Sin archivos `src/**/*.cs` cambiados: no hay nada que mutar.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          for project in $(printf '%s\n' "${files[@]}" | cut -d/ -f2 | sort -u); do
+            case "$project" in
+              MiRestaurante.Domain|MiRestaurante.Application) tests="Application.UnitTests Infrastructure.IntegrationTests Api.FunctionalTests" ;;
+              MiRestaurante.Infrastructure) tests="Infrastructure.IntegrationTests Api.FunctionalTests" ;;
+              MiRestaurante.Api) tests="Api.FunctionalTests" ;;
+              *) continue ;;
+            esac
+            args=()
+            for t in $tests; do
+              args+=(--test-project "../../tests/MiRestaurante.$t/MiRestaurante.$t.csproj")
+            done
+            for f in "${files[@]}"; do
+              if [[ "$f" == "src/$project/"* ]]; then
+                args+=(--mutate "${f#"src/$project/"}")
+              fi
+            done
+            # Con la concurrencia por defecto, PostgreSQL satura el runner y aparecen falsos Timeout.
+            (cd "src/$project" && dotnet stryker --test-runner mtp --concurrency 4 "${args[@]}" \
+              --output "../../TestResults/stryker/$project" --reporter cleartext --reporter json)
+          done
+
+      - name: Publicar puntuación y supervivientes
+        if: always()
+        run: |
+          shopt -s nullglob
+          reports=(TestResults/stryker/*/reports/mutation-report.json)
+          if [ ${#reports[@]} -eq 0 ]; then
+            exit 0
+          fi
+          echo '## Mutation testing (informativo)' >> "$GITHUB_STEP_SUMMARY"
+          for report in "${reports[@]}"; do
+            project=$(echo "$report" | cut -d/ -f3)
+            jq -r --arg p "$project" '
+              [.files | to_entries[] | (.key | sub("^.*?/src/"; "src/")) as $f | .value.mutants[] | . + {file: $f}] as $m
+              | ($m | map(select(.status == "Killed")) | length) as $k
+              | ($m | map(select(.status | IN("Killed", "Survived", "NoCoverage", "Timeout"))) | length) as $t
+              | "\n### \($p)\n",
+                "Puntuación: **\(if $t > 0 then ($k * 10000 / $t | round) / 100 else 0 end) %** (\($k) de \($t) mutantes eliminados; `Timeout` no cuenta como detectado).\n",
+                "Cada fila se clasifica como prueba débil, mutante equivalente o código sobrante.\n",
+                "| Archivo | Línea | Mutador | Reemplazo | Estado |",
+                "| --- | --- | --- | --- | --- |",
+                ($m[] | select(.status | IN("Survived", "NoCoverage", "Timeout"))
+                  | "| \(.file) | \(.location.start.line) | \(.mutatorName) | `\(.replacement // "" | gsub("[\r\n]+"; " ") | gsub("\\|"; "\\|"))` | \(.status) |")
+            ' "$report" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Publicar los informes de mutación
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutacion-backend
+          path: TestResults/stryker/
+          if-no-files-found: ignore
