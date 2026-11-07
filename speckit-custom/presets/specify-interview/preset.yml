@@ -1,0 +1,18 @@
+schema_version: "1.0"
+
+preset:
+  id: "specify-interview"
+  name: "Specify con interview"
+  version: "1.0.0"
+  description: "Hace que /speckit-specify use siempre la skill interview"
+
+requires:
+  speckit_version: ">=1.2.0"
+
+provides:
+  templates:
+    - type: "command"
+      name: "speckit.specify"
+      file: "commands/speckit.specify.md"
+      description: "Antepone la entrevista al flujo de specify"
+      strategy: "prepend"

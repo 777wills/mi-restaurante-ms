@@ -1,0 +1,18 @@
+schema_version: "1.0"
+
+preset:
+  id: "implement-orchestrator"
+  name: "Implement orquestado"
+  version: "1.0.0"
+  description: "Convierte /speckit-implement en un orquestador que delega cada tarea en subagentes y nunca escribe código"
+
+requires:
+  speckit_version: ">=1.2.0"
+
+provides:
+  templates:
+    - type: "command"
+      name: "speckit.implement"
+      file: "commands/speckit.implement.md"
+      description: "Antepone el rol de orquestador, la delegación y la traza al flujo de implement"
+      strategy: "prepend"

@@ -13,4 +13,8 @@ internal static class Layers
     // Assemblies are loaded by name so the tests do not depend on any specific type
     // that may be renamed or deleted as the project evolves.
     public static Assembly Load(string layer) => Assembly.Load(layer);
+
+    public static bool IsFrameworkAssembly(string name) =>
+        name.StartsWith("System", StringComparison.Ordinal)
+        || name is "netstandard" or "mscorlib";
 }
